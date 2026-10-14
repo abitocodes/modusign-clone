@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
 import { isUuid } from "@/lib/documents/server";
+import { PREVIEW } from "@/lib/preview/flag";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentRow, FieldRow, Participant, Profile } from "@/lib/types";
@@ -68,6 +69,8 @@ function cookieKey(): string {
   const dedicated = process.env.SIGN_COOKIE_SECRET?.trim();
   if (dedicated && dedicated.length >= 32) return dedicated;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // preview mode (mock backend, never in a production build) may run without any secret
+  if (!service && PREVIEW) return "opensign/preview-only/sign-identity-cookie";
   if (!service) throw new Error("SIGN_COOKIE_SECRET is not configured");
   return createHmac("sha256", service).update("opensign/sign-identity-cookie/v2").digest("hex");
 }

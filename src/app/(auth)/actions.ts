@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { PREVIEW } from "@/lib/preview/flag";
 import { safeNextPath } from "@/lib/safe-next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -25,7 +26,8 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   const next = safeNextPath(formData.get("next"));
   if (!login || !password) return { error: "아이디와 비밀번호를 입력해 주세요." };
 
-  const email = await resolveLoginEmail(login);
+  // preview mode (mock backend): an unknown 아이디 is handed on as is — the mock signs in the demo admin
+  const email = (await resolveLoginEmail(login)) ?? (PREVIEW ? login.toLowerCase() : null);
   if (!email) return { error: "아이디 또는 비밀번호가 올바르지 않습니다." };
 
   const supabase = await createClient();

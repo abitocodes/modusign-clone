@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
 
+import { PreviewBadge } from "@/components/preview";
+import { PREVIEW } from "@/lib/preview/flag";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,6 +16,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ko" data-theme="dark" className="h-full">
       <body className="min-h-full">
         {children}
+        {PREVIEW && <PreviewBadge />}
         <Toaster
           position="bottom-center"
           toastOptions={{

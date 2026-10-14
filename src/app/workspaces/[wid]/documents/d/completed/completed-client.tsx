@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { PreviewSignerTools } from "@/components/preview";
+import { PREVIEW } from "@/lib/preview/flag";
 import type { DocStatus, RequestType } from "@/lib/types";
 import { cn, fmtDateTime } from "@/lib/utils";
 
@@ -79,6 +81,7 @@ export function CompletedClient({ wid, doc }: { wid: string; doc: CompletedDoc |
               ))}
             </div>
           )}
+          {PREVIEW && doc && <PreviewSignerTools docId={doc.id} status={doc.status} viewerLink className="mt-6 w-full max-w-[420px]" />}
         </section>
 
         <section className="mt-3.5 flex min-h-[112px] items-center justify-between gap-6 rounded-xl border border-line bg-surface p-[30px]">

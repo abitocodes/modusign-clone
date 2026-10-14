@@ -1,10 +1,21 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+
+const noopSubscribe = () => () => {};
+
+/** false while rendering on the server and during hydration, true afterwards */
+function useHydrated() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
 
 export interface ModalProps {
   open: boolean;
@@ -38,6 +49,9 @@ export function Modal({
   bodyClassName,
   closeOnBackdrop = true,
 }: ModalProps) {
+  // a modal that is open on the first render (e.g. /sign/[token]?action=reject) is portalled only after
+  // hydration — the server renders nothing for it, so the first client render must match that
+  const hydrated = useHydrated();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -50,7 +64,7 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!open || !hydrated) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-backdrop px-4 py-[66px]">

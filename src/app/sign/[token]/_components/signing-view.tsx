@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { PreviewAutoFillButton, previewFieldValue } from "@/components/preview";
 import { SignatureDialog, SignMethodPicker, StampDialog } from "@/components/signature";
 import { ConfirmModal } from "@/components/ui/modal";
+import { PREVIEW } from "@/lib/preview/flag";
 import { cn, participantColor } from "@/lib/utils";
 
 import { markViewed, rejectSignature, saveDraft, submitSignature } from "../actions";
@@ -187,6 +189,22 @@ export function SigningView({ doc, autoReject }: { doc: SignDocument; autoReject
     });
     setDirty(true);
     markTouched(f.id);
+  };
+
+  /** preview mode only: every one of my empty / invalid fields gets a dummy value */
+  const previewAutoFill = () => {
+    setValues((prev) => {
+      const next = { ...prev };
+      for (const f of ordered) {
+        if (hasValue(f, prev[f.id]) && !fieldError(f, prev[f.id])) continue;
+        const v = previewFieldValue(f, { name: doc.me.name, today: doc.today });
+        if (v) next[f.id] = v;
+      }
+      return next;
+    });
+    setDirty(true);
+    setAttempted(false);
+    toast.success("입력란을 모두 채웠습니다. ‘입력 완료’를 눌러 서명을 진행하세요. (미리보기)");
   };
 
   /* -------------------------------------------------------------- actions */
@@ -394,6 +412,8 @@ export function SigningView({ doc, autoReject }: { doc: SignDocument; autoReject
           </button>
         </footer>
       )}
+
+      {PREVIEW && signing && <PreviewAutoFillButton onFill={previewAutoFill} />}
 
       {/* 사인·도장 */}
       <SignMethodPicker

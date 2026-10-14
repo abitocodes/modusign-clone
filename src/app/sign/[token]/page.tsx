@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import type { SavedSignature } from "@/components/signature";
+import { PREVIEW } from "@/lib/preview/flag";
 import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import type { FieldRow } from "@/lib/types";
@@ -107,7 +108,20 @@ async function buildView(token: string): Promise<SignView> {
   }
 
   if (!(await isVerified(me))) {
-    return { kind: "identity", token: me.access_token, check: identityCheck(me) ?? "email", needPassword: !!me.auth_password };
+    const check = identityCheck(me) ?? "email";
+    return {
+      kind: "identity",
+      token: me.access_token,
+      check,
+      needPassword: !!me.auth_password,
+      // preview mode (mock backend) only: lets the 본인 확인 shortcut fill in the invited contact
+      ...(PREVIEW && {
+        preview: {
+          contact: check === "email" ? me.email : (me.phone ?? "").replace(/\D/g, "").slice(-4) || null,
+          password: me.auth_password,
+        },
+      }),
+    };
   }
 
   // signed with the service role: the path is rebuilt from the ids, never taken from the row

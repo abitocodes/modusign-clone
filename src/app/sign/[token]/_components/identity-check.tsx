@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { PreviewIdentitySkip } from "@/components/preview";
+import { PREVIEW } from "@/lib/preview/flag";
 import { cn } from "@/lib/utils";
 
 import { verifyIdentity } from "../actions";
@@ -16,22 +18,31 @@ const inputCls =
   "h-10 w-full rounded border border-line-strong bg-surface px-3 text-sm text-fg outline-none transition-colors placeholder:text-fg-disabled focus:border-emphasis focus:shadow-focus";
 
 /** 본인 확인 필요: e-mail (or phone digits) + optional 인증 비밀번호, then a fraud warning. */
-export function IdentityCheck({ token, check, needPassword }: { token: string; check: "email" | "phone"; needPassword: boolean }) {
+export function IdentityCheck({
+  token,
+  check,
+  needPassword,
+  preview,
+}: {
+  token: string;
+  check: "email" | "phone";
+  needPassword: boolean;
+  /** preview mode only: invited contact / 인증 비밀번호 (prefill + 본인 확인 건너뛰기) */
+  preview?: { contact: string | null; password: string | null };
+}) {
   const router = useRouter();
   const ids = { id: useId(), pw: useId(), err: useId() };
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(PREVIEW ? (preview?.contact ?? "") : "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<{ field: "id" | "password" | "form"; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const ready = value.trim().length > 0 && (!needPassword || password.length > 0);
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!ready || pending) return;
+  const verify = (id: string, pw: string) => {
     setError(null);
     startTransition(async () => {
-      const res = await callAction(() => verifyIdentity(token, check === "email" ? { email: value, password } : { phone: value, password }));
+      const res = await callAction(() => verifyIdentity(token, check === "email" ? { email: id, password: pw } : { phone: id, password: pw }));
       if (!res.ok) {
         const f = "field" in res ? res.field : undefined;
         const field = f === "password" ? "password" : f ? "id" : "form";
@@ -40,6 +51,12 @@ export function IdentityCheck({ token, check, needPassword }: { token: string; c
       }
       router.refresh();
     });
+  };
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!ready || pending) return;
+    verify(value, password);
   };
 
   const description =
@@ -122,6 +139,15 @@ export function IdentityCheck({ token, check, needPassword }: { token: string; c
             {pending && <LoaderCircle className="size-4 animate-spin" />}
             다음으로
           </button>
+          {PREVIEW && preview && (
+            <PreviewIdentitySkip
+              contact={preview.contact}
+              password={preview.password}
+              busy={pending}
+              onSkip={() => verify(preview.contact ?? "", preview.password ?? "")}
+              className="mt-6 w-full max-w-[320px]"
+            />
+          )}
         </form>
       </Card>
 

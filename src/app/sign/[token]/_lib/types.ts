@@ -106,6 +106,11 @@ export type SignView =
       /** what the signer has to type */
       check: "email" | "phone";
       needPassword: boolean;
+      /**
+       * Preview mode only (src/lib/preview, never set otherwise): the invited contact and 인증 비밀번호
+       * for the "본인 확인 건너뛰기 (미리보기)" shortcut — fake demo data.
+       */
+      preview?: { contact: string | null; password: string | null };
     }
   | { kind: "sign"; doc: SignDocument }
   | { kind: "done"; done: SignDone };

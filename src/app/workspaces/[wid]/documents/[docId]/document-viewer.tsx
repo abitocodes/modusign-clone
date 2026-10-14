@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { FieldValue } from "@/components/fields/field-value";
 import { PdfPageView, PdfThumbnail, usePdfDocument } from "@/components/pdf/pdf";
+import { PreviewSignerTools } from "@/components/preview";
 import { StatusBadge } from "@/components/ui/badge";
 import {
   documentsHome,
@@ -16,6 +17,7 @@ import {
   type ProgressInfo,
 } from "@/lib/documents/view";
 import { FIELD_META } from "@/lib/fields";
+import { PREVIEW } from "@/lib/preview/flag";
 import type { DocStatus, FieldRow, PageSize, RequestType, SigningOrder } from "@/lib/types";
 import { cn, documentBadge, participantColor, withAlpha } from "@/lib/utils";
 
@@ -281,6 +283,7 @@ export function DocumentViewer({
 
         {/* info panel */}
         <aside aria-label="문서 정보" className="w-[320px] shrink-0 overflow-y-auto border-l border-line bg-surface">
+          {PREVIEW && <PreviewSignerTools docId={doc.id} status={doc.status} className="mx-5 mt-5" />}
           <section className="border-b border-line px-5 py-5">
             <h2 className="text-[15px] font-bold text-fg">문서 정보</h2>
             <dl className="mt-3 space-y-2 text-[13px]">

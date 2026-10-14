@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { PreviewSignerTools } from "@/components/preview";
 import { StatusBadge } from "@/components/ui/badge";
 import { Avatar, Checkbox } from "@/components/ui/controls";
 import { Cell, TableRow } from "@/components/ui/list-page";
@@ -44,6 +45,7 @@ import {
   wizardHref,
   type DocListItem,
 } from "@/lib/documents/view";
+import { PREVIEW } from "@/lib/preview/flag";
 import type { Label } from "@/lib/types";
 import { cn, documentBadge } from "@/lib/utils";
 
@@ -369,6 +371,7 @@ function RowPanel({
         <PanelRow icon={<Info />} onClick={() => onCommand("progress")}>
           진행 정보 확인
         </PanelRow>
+        {PREVIEW && <PreviewSignerTools docId={doc.id} status={doc.status} className="mx-[26px] mb-[26px] mt-3" />}
       </div>
     </div>
   );

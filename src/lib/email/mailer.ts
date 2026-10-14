@@ -2,6 +2,7 @@ import "server-only";
 
 import { createTransport, type Transporter } from "nodemailer";
 
+import { PREVIEW } from "@/lib/preview/flag";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface MailInput {
@@ -18,6 +19,8 @@ export interface MailInput {
 let transport: Transporter | null | undefined;
 function getTransport() {
   if (transport !== undefined) return transport;
+  // preview mode (`npm run dev:preview`): never any SMTP — mails are only logged (see /dev/mailbox)
+  if (PREVIEW) return (transport = null);
   const host = process.env.SMTP_HOST;
   if (!host) return (transport = null);
   transport = createTransport({
@@ -61,6 +64,7 @@ export async function sendMail(input: MailInput): Promise<boolean> {
       console.error("[mailer] SMTP send failed:", (e as Error).message);
     }
   }
+  if (PREVIEW) console.info(`[preview] mail (not sent) → ${input.to}: ${input.subject}`);
   try {
     await createAdminClient().from("outbound_emails").insert({
       document_id: input.documentId ?? null,

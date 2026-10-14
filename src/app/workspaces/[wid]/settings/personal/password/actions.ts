@@ -3,6 +3,8 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import { type ActionResult, passwordProblem } from "@/components/settings/shared";
+import { PREVIEW } from "@/lib/preview/flag";
+import { createPreviewStandaloneClient } from "@/lib/preview/server-client";
 import { createClient } from "@/lib/supabase/server";
 
 export interface ChangePasswordInput {
@@ -31,9 +33,12 @@ export async function changePassword(input: ChangePasswordInput): Promise<Action
   } = await supabase.auth.getUser();
   if (!user?.email) return { ok: false, error: "로그인이 필요합니다." };
 
-  const verifier = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
+  // preview mode (mock backend, never in a production build): an in-memory client that accepts any password
+  const verifier = PREVIEW
+    ? (createPreviewStandaloneClient() as unknown as ReturnType<typeof createSupabaseClient>)
+    : createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      });
   const { error: verifyErr } = await verifier.auth.signInWithPassword({ email: user.email, password: current });
   if (verifyErr) {
     if (/rate|too many/i.test(verifyErr.message)) return { ok: false, error: "시도 횟수가 많습니다. 잠시 후 다시 시도해 주세요." };

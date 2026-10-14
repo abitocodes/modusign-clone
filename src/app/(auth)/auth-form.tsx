@@ -3,8 +3,10 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useActionState, useState } from "react";
 
+import { PREVIEW_LOGIN_ID, PreviewLoginHint } from "@/components/preview";
 import { Wordmark } from "@/components/shell/logo";
 import { TextField } from "@/components/ui/input";
+import { PREVIEW } from "@/lib/preview/flag";
 
 import { signIn, type AuthState } from "./actions";
 
@@ -20,16 +22,25 @@ export function LoginForm({ next }: { next?: string }) {
       <div className="w-full max-w-[420px] rounded-xl border border-line bg-surface px-9 pb-9 pt-10 shadow-card">
         <h1 className="text-2xl font-bold text-fg">로그인</h1>
         <p className="mt-2 text-sm text-fg-muted">사내 계정의 아이디와 비밀번호를 입력하세요.</p>
+        {PREVIEW && <PreviewLoginHint className="mt-5" />}
 
         <form action={action} className="mt-8 flex flex-col gap-4">
           {next && <input type="hidden" name="next" value={next} />}
-          <TextField name="login" label="아이디" autoComplete="username" required autoFocus />
+          <TextField
+            name="login"
+            label="아이디"
+            autoComplete="username"
+            required
+            autoFocus={!PREVIEW}
+            defaultValue={PREVIEW_LOGIN_ID}
+          />
           <TextField
             name="password"
             label="비밀번호"
             type={show ? "text" : "password"}
             autoComplete="current-password"
             required
+            autoFocus={PREVIEW}
             right={
               <button
                 type="button"
