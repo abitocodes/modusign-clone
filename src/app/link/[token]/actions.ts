@@ -1,0 +1,101 @@
+"use server";
+
+import { redirect } from "next/navigation";
+
+import { setVerifiedCookie } from "@/app/sign/[token]/_lib/server";
+import { sendDocument } from "@/lib/server/send";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { PERSON_NAME_MAX, isValidEmail } from "@/lib/templates/model";
+import { discardInstantiated, instantiateTemplate } from "@/lib/templates/server";
+import type { Participant } from "@/lib/types";
+
+import { loadLink } from "./load";
+
+export interface LinkFormState {
+  error: string | null;
+  field: "name" | "email" | "agree" | null;
+  values: { name: string; email: string };
+}
+
+/** per link: documents per minute / per e-mail address: documents per 10 minutes */
+const LINK_RATE_PER_MINUTE = 10;
+const EMAIL_RATE_PER_10_MIN = 3;
+
+/**
+ * 링크서명 시작 (public, no login): creates a document from the link's template owned by the
+ * link creator, with the visitor as the single (pending) participant, sends it (events
+ * created + sent, sign-request mail), marks the browser as verified for that participant and
+ * opens the signer flow.
+ */
+export async function startLinkSign(token: string, _prev: LinkFormState, formData: FormData): Promise<LinkFormState> {
+  const name = String(formData.get("name") ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const agree = formData.get("agree") === "on";
+  const values = { name, email };
+  const fail = (error: string, field: LinkFormState["field"] = null): LinkFormState => ({ error, field, values });
+
+  if (!name) return fail("이름을 입력해 주세요.", "name");
+  if (name.length > PERSON_NAME_MAX) return fail(`이름은 ${PERSON_NAME_MAX}자 이내로 입력해 주세요.`, "name");
+  if (!email) return fail("이메일 주소를 입력해 주세요.", "email");
+  if (!isValidEmail(email)) return fail("올바른 이메일 주소를 입력해 주세요.", "email");
+  if (!agree) return fail("개인정보 수집·이용에 동의해 주세요.", "agree");
+
+  const state = await loadLink(token);
+  if (state.kind === "missing") return fail("존재하지 않는 링크입니다.");
+  if (state.kind === "inactive") return fail("현재 서명을 받지 않는 링크입니다.");
+  if (state.kind === "unavailable") return fail("서명할 문서를 준비할 수 없습니다. 링크를 전달한 담당자에게 문의해 주세요.");
+  const { link, template } = state;
+  const admin = createAdminClient();
+
+  // abuse guard: a public link must not become a mail cannon
+  const now = Date.now();
+  const [{ count: perMinute }, { data: recent }] = await Promise.all([
+    admin
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("link_sign_id", link.id)
+      .gte("created_at", new Date(now - 60_000).toISOString()),
+    admin
+      .from("participants")
+      .select("id, documents!inner(link_sign_id, created_at)")
+      .eq("email", email)
+      .eq("documents.link_sign_id", link.id)
+      .gte("documents.created_at", new Date(now - 10 * 60_000).toISOString())
+      .limit(EMAIL_RATE_PER_10_MIN),
+  ]);
+  if ((perMinute ?? 0) >= LINK_RATE_PER_MINUTE || (recent ?? []).length >= EMAIL_RATE_PER_10_MIN) {
+    return fail("요청이 너무 많습니다. 잠시 후 다시 시도해 주세요. 이미 시작한 서명은 이메일로 받은 링크에서 이어서 진행할 수 있습니다.");
+  }
+
+  const made = await instantiateTemplate({
+    db: admin,
+    template,
+    ownerId: link.owner_id,
+    title: link.title,
+    labelIds: link.label_ids ?? [],
+    linkSignId: link.id,
+    people: [{ name, email }],
+  });
+  if (!made.ok) return fail("서명할 문서를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.");
+
+  // the link was authorised above (token + active + template); the visitor is the actor
+  const sent = await sendDocument(made.documentId, { trusted: true, actor: { name, email } });
+  if (!sent.ok) {
+    await discardInstantiated(admin, link.workspace_id, made.documentId);
+    console.error("[link] send failed:", sent.error);
+    return fail("서명할 문서를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+
+  await admin.from("link_signs").update({ last_activity_at: new Date().toISOString() }).eq("id", link.id);
+
+  const { data: me } = await admin.from("participants").select("*").eq("id", made.participants[0].id).single();
+  if (!me) return fail("서명 정보를 불러오지 못했습니다. 이메일로 받은 링크에서 서명을 진행해 주세요.");
+  // same verification cookie as the /sign identity check → the e-mail check screen is skipped
+  await setVerifiedCookie(me as Participant);
+
+  redirect(`/sign/${(me as Participant).access_token}`);
+}

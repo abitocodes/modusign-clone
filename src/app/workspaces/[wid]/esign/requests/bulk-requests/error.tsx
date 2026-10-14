@@ -1,0 +1,13 @@
+"use client";
+
+import { ErrorState } from "@/components/tools/list-states";
+import { ListPage, ListTitle } from "@/components/ui/list-page";
+
+export default function BulkRequestsError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  return (
+    <ListPage>
+      <ListTitle title="대량전송" />
+      <ErrorState title="대량전송 목록을 불러오지 못했습니다." onRetry={retry} />
+    </ListPage>
+  );
+}

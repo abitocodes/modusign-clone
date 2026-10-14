@@ -1,0 +1,332 @@
+@import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
+/* ---------------------------------------------------------------------------
+ * Design tokens
+ * Dark theme is the default (html[data-theme="dark"]); light theme is also
+ * supported (html[data-theme="light"]).
+ * ------------------------------------------------------------------------- */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* surfaces */
+  --body: #121212;
+  --body-2: #191919;
+  --surface: #212121;
+  --surface-2: #242424;
+  --surface-3: #262626;
+  --surface-4: #2b2b2b;
+  --modal: #292929;
+  --modal-head: #262626;
+  --modal-foot: #2d2d2d;
+  --menu: #383838;
+  --menu-hover: #434343;
+  --tooltip: #292929;
+
+  /* buttons */
+  --btn-light: #2e2e2e;
+  --btn-base: #3c3c3c;
+  --btn-dark: #434343;
+  --btn-hover: #4d4d4d;
+  --btn-disabled: #262626;
+  --primary: #856d00;
+  --primary-hover: #705c00;
+  --primary-border: #9e8300;
+  --primary-fg: #ffffff;
+  --secondary: #c9c9c9;
+  --secondary-fg: #121212;
+
+  /* lines */
+  --line-faint: #292929;
+  --line-light: #383838;
+  --line: #474747;
+  --line-strong: #575757;
+  --line-input: #474747;
+
+  /* text */
+  --text-strong: #f8f8f8;
+  --text: #e8e8e8;
+  --text-2: #d9d9d9;
+  --text-3: #c9c9c9;
+  --text-muted: #a3a3a3;
+  --text-faint: #949494;
+  --text-disabled: #848484;
+  --text-reversed: #121212;
+  --icon: #e0e0e0;
+  --icon-2: #d1d1d1;
+
+  /* semantic */
+  --emphasis: #5991f4;
+  --emphasis-strong: #8eb6fb;
+  --emphasis-bg: #202b3f;
+  --emphasis-bg-hover: #2a3549;
+  --emphasis-border: #043da1;
+  --radio-on: #1254cb;
+  --positive: #3cc0a0;
+  --positive-bg: #223d37;
+  --positive-border: #00644c;
+  --negative: #f96464;
+  --negative-bg: #492b2b;
+  --negative-border: #a40e0e;
+  --warning: #ffcb4c;
+  --warning-strong: #ffb64c;
+  --warning-bg: #363021;
+  --warning-border: #5f5540;
+  --neutral-badge-bg: #2b2b2b;
+  --neutral-badge-border: #575757;
+  --neutral-badge-text: #c2c2c2;
+  --banner: #202b3f;
+  --banner-pill-border: #043da1;
+  --avatar: #ffe0b2;
+  --avatar-fg: #292929;
+  --page: #ffffff;
+  --canvas: #e0e0e0;
+  --backdrop: rgba(0, 0, 0, 0.7);
+
+  /* shadows */
+  --shadow-menu: 0 0 0 1px #ffffff1a, 0 4px 12px #0000008c;
+  --shadow-modal: 0 0 0 1px #ffffff1a, 0 60px 40px -30px #000000b3;
+  --shadow-card: 0 0 0 1px #ffffff0f, 0 2px 8px #00000080;
+  --shadow-input: inset 1px 1px 2px #0006;
+  --shadow-focus: 0 0 5px #3d7ef180, inset 1px 1px 2px #0006;
+  --shadow-button: 0 0 0 1px #ffffff14;
+  --shadow-toast: 0 0 0 1px #ffffff1f, 0 6px 16px #0009;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --body: #ffffff;
+  --body-2: #f8f8f8;
+  --surface: #ffffff;
+  --surface-2: #fbfbfb;
+  --surface-3: #f8f8f8;
+  --surface-4: #f0f0f0;
+  --modal: #ffffff;
+  --modal-head: #fbfbfb;
+  --modal-foot: #f8f8f8;
+  --menu: #ffffff;
+  --menu-hover: #f8f8f8;
+  --tooltip: #212121;
+
+  --btn-light: #ffffff;
+  --btn-base: #f8f8f8;
+  --btn-dark: #f0f0f0;
+  --btn-hover: #e8e8e8;
+  --btn-disabled: #f0f0f0;
+  --primary: #ffd919;
+  --primary-hover: #ffcb4c;
+  --primary-border: #ffbd19;
+  --primary-fg: #212121;
+  --secondary: #383838;
+  --secondary-fg: #ffffff;
+
+  --line-faint: #f0f0f0;
+  --line-light: #e8e8e8;
+  --line: #e0e0e0;
+  --line-strong: #d1d1d1;
+  --line-input: #e0e0e0;
+
+  --text-strong: #000000;
+  --text: #292929;
+  --text-2: #474747;
+  --text-3: #666666;
+  --text-muted: #757575;
+  --text-faint: #949494;
+  --text-disabled: #bababa;
+  --text-reversed: #ffffff;
+  --icon: #474747;
+  --icon-2: #666666;
+
+  --emphasis: #286fed;
+  --emphasis-strong: #0b48b6;
+  --emphasis-bg: #f3f8ff;
+  --emphasis-bg-hover: #d0e1ff;
+  --emphasis-border: #d0e1ff;
+  --radio-on: #286fed;
+  --positive: #00a77f;
+  --positive-bg: #e2f9f4;
+  --positive-border: #ade8da;
+  --negative: #e42929;
+  --negative-bg: #fff4f4;
+  --negative-border: #ffd5d5;
+  --warning: #8f6600;
+  --warning-strong: #f90;
+  --warning-bg: #fffdf2;
+  --warning-border: #ffebcc;
+  --neutral-badge-bg: #f0f0f0;
+  --neutral-badge-border: #d1d1d1;
+  --neutral-badge-text: #666666;
+  --banner: #28303c;
+  --banner-pill-border: #5991f4;
+  --avatar: #ffe0b2;
+  --avatar-fg: #292929;
+  --page: #ffffff;
+  --canvas: #f8f8f8;
+  --backdrop: rgba(0, 0, 0, 0.5);
+
+  --shadow-menu: 0 2px 6px #0000001a;
+  --shadow-modal: 0 60px 40px -30px #00000059;
+  --shadow-card: 0 2px 8px #0000000d;
+  --shadow-input: inset 1px 1px 2px #0000000f;
+  --shadow-focus: 0 0 5px #3d7ef159, inset 1px 1px 2px #0000000f;
+  --shadow-button: 0 3px 2px -2px #0000000f;
+  --shadow-toast: 0 3px 8px #00000040;
+}
+
+@theme inline {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+  --color-body: var(--body);
+  --color-body-2: var(--body-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-modal: var(--modal);
+  --color-modal-head: var(--modal-head);
+  --color-modal-foot: var(--modal-foot);
+  --color-menu: var(--menu);
+  --color-menu-hover: var(--menu-hover);
+  --color-tooltip: var(--tooltip);
+
+  --color-btn-light: var(--btn-light);
+  --color-btn-base: var(--btn-base);
+  --color-btn-dark: var(--btn-dark);
+  --color-btn-hover: var(--btn-hover);
+  --color-btn-disabled: var(--btn-disabled);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-border: var(--primary-border);
+  --color-primary-fg: var(--primary-fg);
+  --color-secondary: var(--secondary);
+  --color-secondary-fg: var(--secondary-fg);
+
+  --color-line-faint: var(--line-faint);
+  --color-line-light: var(--line-light);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-input: var(--line-input);
+
+  --color-fg-strong: var(--text-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-faint: var(--text-faint);
+  --color-fg-disabled: var(--text-disabled);
+  --color-fg-reversed: var(--text-reversed);
+  --color-icon: var(--icon);
+  --color-icon-2: var(--icon-2);
+
+  --color-emphasis: var(--emphasis);
+  --color-emphasis-strong: var(--emphasis-strong);
+  --color-emphasis-bg: var(--emphasis-bg);
+  --color-emphasis-bg-hover: var(--emphasis-bg-hover);
+  --color-emphasis-border: var(--emphasis-border);
+  --color-radio-on: var(--radio-on);
+  --color-positive: var(--positive);
+  --color-positive-bg: var(--positive-bg);
+  --color-positive-border: var(--positive-border);
+  --color-negative: var(--negative);
+  --color-negative-bg: var(--negative-bg);
+  --color-negative-border: var(--negative-border);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-neutral-badge-bg: var(--neutral-badge-bg);
+  --color-neutral-badge-border: var(--neutral-badge-border);
+  --color-neutral-badge-text: var(--neutral-badge-text);
+  --color-banner: var(--banner);
+  --color-banner-pill-border: var(--banner-pill-border);
+  --color-avatar: var(--avatar);
+  --color-avatar-fg: var(--avatar-fg);
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-backdrop: var(--backdrop);
+
+  /* participant colours (same in both themes) */
+  --color-p1: #ffcf00;
+  --color-p2: #51c8aa;
+  --color-p3: #5991f4;
+  --color-p4: #ff5252;
+  --color-p5: #9b8aff;
+  --color-p6: #c4f02c;
+  --color-p7: #e892f7;
+  --color-p8: #ff8515;
+  --color-p9: #4fdfff;
+  --color-p10: #ff52c5;
+
+  --shadow-menu: var(--shadow-menu);
+  --shadow-modal: var(--shadow-modal);
+  --shadow-card: var(--shadow-card);
+  --shadow-input: var(--shadow-input);
+  --shadow-focus: var(--shadow-focus);
+  --shadow-button: var(--shadow-button);
+  --shadow-toast: var(--shadow-toast);
+}
+
+html,
+body {
+  background: var(--body);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+/* thin scrollbars like the original */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-disabled);
+}
+
+/* pdf.js text layer (keeps text selectable but invisible over the canvas) */
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  opacity: 1;
+}
+.pdf-text-layer span,
+.pdf-text-layer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.pdf-text-layer ::selection {
+  background: rgba(89, 145, 244, 0.35);
+}
