@@ -12,7 +12,15 @@ import { Segmented } from "@/components/ui/tabs";
 import { WizardHeader, WizardNextButton } from "@/components/wizard/wizard-header";
 import type { RequestType, SigningOrder } from "@/lib/types";
 
-import { EMAIL_RE, MAX_PARTICIPANTS, uuid, type ParticipantInput, type PersonSuggestion } from "../../../_lib/types";
+import {
+  AUTH_PASSWORD_MAX,
+  AUTH_PASSWORD_MIN,
+  EMAIL_RE,
+  MAX_PARTICIPANTS,
+  uuid,
+  type ParticipantInput,
+  type PersonSuggestion,
+} from "../../../_lib/types";
 import { discardUnsavedDraft, saveAsTemplate, saveParticipants } from "./actions";
 import { ParticipantCard } from "./participant-card";
 
@@ -57,7 +65,7 @@ function ModalHeader({ title, onClose }: { title: string; onClose: () => void })
 function AuthModal({ open, name, initial, onClose, onSave }: { open: boolean; name: string; initial: string | null; onClose: () => void; onSave: (pw: string | null) => void }) {
   const [enabled, setEnabled] = useState(!!initial);
   const [pw, setPw] = useState(initial ?? "");
-  const invalid = enabled && (pw.length < 4 || pw.length > 20);
+  const invalid = enabled && (pw.length < AUTH_PASSWORD_MIN || pw.length > AUTH_PASSWORD_MAX);
   return (
     <Modal open={open} onClose={onClose} width={480}>
       <ModalHeader title="인증 설정" onClose={onClose} />
@@ -73,8 +81,8 @@ function AuthModal({ open, name, initial, onClose, onSave }: { open: boolean; na
                 autoFocus
                 autoComplete="new-password"
                 value={pw}
-                maxLength={20}
-                placeholder="비밀번호 (4~20자)"
+                maxLength={AUTH_PASSWORD_MAX}
+                placeholder={`비밀번호 (${AUTH_PASSWORD_MIN}~${AUTH_PASSWORD_MAX}자)`}
                 invalid={pw.length > 0 && invalid}
                 onChange={(e) => setPw(e.target.value)}
                 className="h-10"

@@ -2,11 +2,13 @@
 
 import { Check, ChevronLeft, ChevronRight, Cloud, Database, MessagesSquare, Webhook, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import type { DocStatus, RequestType } from "@/lib/types";
 import { cn, fmtDateTime } from "@/lib/utils";
+
+import { startInPersonSigning } from "../../../esign/documents/actions";
 
 export interface CompletedDoc {
   id: string;
@@ -14,6 +16,8 @@ export interface CompletedDoc {
   status: DocStatus;
   request_type: RequestType;
   scheduled_at: string | null;
+  /** pending 직접 대면 signers (requester / admin only) */
+  inPersonPending: { id: string; name: string }[];
 }
 
 const INTEGRATIONS: { icon: LucideIcon; text: string }[] = [
@@ -30,6 +34,8 @@ export function CompletedClient({ wid, doc }: { wid: string; doc: CompletedDoc |
   const boxHref = `${base}/esign/documents/documents?status=${scheduled ? "scheduled" : "all"}`;
   const item = INTEGRATIONS[slide];
   const Icon = item.icon;
+  const [inPersonBusy, startInPerson] = useTransition();
+  const verb = doc?.request_type === "view" ? "열람" : "서명";
 
   return (
     <main className="min-h-screen bg-body-2 px-4 pb-20 pt-3">
@@ -51,6 +57,28 @@ export function CompletedClient({ wid, doc }: { wid: string; doc: CompletedDoc |
             문서함으로
             <ChevronRight className="size-4" />
           </Link>
+          {doc && doc.inPersonPending.length > 0 && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <p className="text-[13px] text-fg-muted">직접 대면 {verb}자의 차례입니다. 이 기기를 {verb}자에게 건네주세요.</p>
+              {doc.inPersonPending.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  disabled={inPersonBusy}
+                  onClick={() =>
+                    startInPerson(async () => {
+                      const res = await startInPersonSigning(wid, doc.id, p.id);
+                      if (res && !res.ok) toast.error(res.error);
+                    })
+                  }
+                  className="inline-flex h-10 items-center gap-1 rounded-md bg-btn-dark px-[22px] text-sm font-semibold text-fg-2 hover:bg-btn-hover disabled:opacity-60"
+                >
+                  지금 직접 대면 {verb} 시작 ({p.name})
+                  <ChevronRight className="size-4" />
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="mt-3.5 flex min-h-[112px] items-center justify-between gap-6 rounded-xl border border-line bg-surface p-[30px]">

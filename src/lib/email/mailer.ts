@@ -38,9 +38,12 @@ export async function sendMail(input: MailInput): Promise<boolean> {
   const t = getTransport();
   if (t) {
     try {
-      await t.sendMail({
+      // structured address: nodemailer quotes / encodes the display name itself, so a name like
+      // `a" <x@evil.test>, "b` can never add recipients to the envelope
+      const name = input.toName?.replace(/[\r\n]+/g, " ").trim();
+      const info = await t.sendMail({
         from: process.env.SMTP_FROM ?? "OpenSign <no-reply@opensign.local>",
-        to: input.toName ? `"${input.toName}" <${input.to}>` : input.to,
+        to: name ? { name, address: input.to } : input.to,
         subject: input.subject,
         html: input.html,
         attachments: input.attachments?.map((a) => ({
@@ -50,6 +53,10 @@ export async function sendMail(input: MailInput): Promise<boolean> {
         })),
       });
       delivered = true;
+      const envelope = (info?.envelope?.to ?? []).map((a: string) => a.toLowerCase());
+      if (envelope.length !== 1 || envelope[0] !== input.to.toLowerCase()) {
+        console.error("[mailer] unexpected envelope recipients:", envelope.join(", "), "expected:", input.to);
+      }
     } catch (e) {
       console.error("[mailer] SMTP send failed:", (e as Error).message);
     }

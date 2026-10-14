@@ -39,7 +39,8 @@ export interface SettingsGroup {
 /* ---------------------------------------------------------------- validation */
 
 export const USERNAME_RE = /^[a-z0-9._-]{2,30}$/;
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// linear-time pattern; check the length (≤ 254) first
+export { EMAIL_RE } from "@/lib/email/address";
 export const NAME_MAX = 30;
 export const ORG_MAX = 30;
 export const PASSWORD_MIN = 8;

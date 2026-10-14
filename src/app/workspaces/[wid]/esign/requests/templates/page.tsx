@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { getWorkspaceContext } from "@/lib/data/session";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import { createClient } from "@/lib/supabase/server";
 import { canManageTemplate } from "@/lib/templates/server";
@@ -80,7 +81,7 @@ export default async function TemplatesPage({ params }: PageProps<"/workspaces/[
         pinnedAt,
         activeLinks: activeLinks.get(r.id) ?? 0,
         // only pinned cards show a page thumbnail (rows above were read with the member's RLS session)
-        thumbUrl: pinnedAt ? await signedUrl(r.file_path, 60 * 60) : null,
+        thumbUrl: pinnedAt && r.file_path ? await signedUrl(paths.template(wid, r.id), 60 * 60) : null,
       };
     }),
   );

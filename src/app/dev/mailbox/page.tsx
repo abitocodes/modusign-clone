@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { StatusBadge } from "@/components/ui/badge";
+import { getMyWorkspaces, getSessionProfile } from "@/lib/data/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { OutboundEmail } from "@/lib/types";
 import { cn, fmtDashDateTime } from "@/lib/utils";
@@ -41,11 +42,16 @@ function href(params: { id?: string | null; q?: string }) {
 
 /**
  * Development mailbox: every e-mail the app sends is logged in public.outbound_emails
- * (also delivered to the local Mailpit when SMTP is configured). Public route under /dev/.
+ * (also delivered to the local Mailpit when SMTP is configured). Logged-in owners / admins of the
+ * company (team) workspace only — the mails contain live signing links.
  */
 export default async function DevMailboxPage({ searchParams }: PageProps<"/dev/mailbox">) {
   // contains live signing links — never expose it in production builds unless explicitly enabled
   if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEV_MAILBOX !== "1") notFound();
+  await getSessionProfile(); // → /login when signed out
+  // every employee owns a personal workspace: the check must be on a team workspace
+  const isAdmin = (await getMyWorkspaces()).some((w) => w.type === "team" && (w.role === "owner" || w.role === "admin"));
+  if (!isAdmin) notFound();
 
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";

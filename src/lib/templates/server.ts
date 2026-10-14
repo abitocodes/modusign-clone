@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { cleanPersonName } from "@/lib/email/address";
 import { FIELD_ORDER } from "@/lib/fields";
 import { BUCKET, paths } from "@/lib/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -107,7 +108,6 @@ export interface InstantiateInput {
 
 export interface InstantiatedParticipant {
   id: string;
-  accessToken: string;
   name: string;
   email: string | null;
 }
@@ -131,7 +131,8 @@ export async function instantiateTemplate(input: InstantiateInput): Promise<Resu
   const title = (input.title ?? t.title).trim().slice(0, 100) || t.title;
   const sizes = (Array.isArray(t.page_sizes) ? t.page_sizes : []) as PageSize[];
 
-  const { error: copyErr } = await admin.storage.from(BUCKET).copy(t.file_path, filePath);
+  // the source path is rebuilt from the ids, never taken from the (user-editable) row
+  const { error: copyErr } = await admin.storage.from(BUCKET).copy(paths.template(t.workspace_id, t.id), filePath);
   if (copyErr) return { ok: false, error: "템플릿 문서를 복사하지 못했습니다. 잠시 후 다시 시도해 주세요." };
 
   const rollback = async () => {
@@ -170,11 +171,12 @@ export async function instantiateTemplate(input: InstantiateInput): Promise<Resu
     const person = input.people?.[i];
     return {
       id: randomUUID(),
-      accessToken: randomUUID(),
-      name: (person?.name ?? "").trim().slice(0, 50),
+      name: cleanPersonName(person?.name, 50),
       email: person?.email ? person.email.trim().toLowerCase() : null,
     };
   });
+  // status ('waiting') and access_token come from the column defaults: the RLS client may not
+  // write them (and sendDocument issues a fresh token anyway)
   const { error: partErr } = await db.from("participants").insert(
     participants.map((p, i) => ({
       id: p.id,
@@ -185,8 +187,6 @@ export async function instantiateTemplate(input: InstantiateInput): Promise<Resu
       email: p.email,
       delivery: "email",
       locale: "ko",
-      status: "waiting",
-      access_token: p.accessToken,
       role_label: roles[i]?.name?.trim() || null,
     })),
   );

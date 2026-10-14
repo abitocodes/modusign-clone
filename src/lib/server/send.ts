@@ -1,5 +1,8 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
+import { isValidEmail } from "@/lib/email/address";
 import { appUrl, sendMail } from "@/lib/email/mailer";
 import { emailLayout, koreanDeadline, maskEmail, signRequestEmail } from "@/lib/email/templates";
 import { logEvent, type EventType } from "@/lib/events";
@@ -15,7 +18,8 @@ import type { DocStatus, DocumentCc, DocumentRow, FieldRow, Participant, Profile
  * workspace (unless `trusted` is passed by an internal caller that authorised by other means).
  */
 
-export type SendResult = { ok: true } | { ok: false; error: string };
+/** `retryable`: a transient (database) failure — nothing was changed, the same send may be retried. */
+export type SendResult = { ok: true } | { ok: false; error: string; retryable?: boolean };
 
 export interface SendOptions {
   /** who started the request (audit trail "created" event). Defaults to the document owner. */
@@ -28,10 +32,11 @@ export interface SendOptions {
 
 /** statuses a document can be sent from */
 const SENDABLE: DocStatus[] = ["draft", "on_modifying", "scheduled"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const RETRY_MESSAGE = "문서를 전송하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
 const fail = (error: string): SendResult => ({ ok: false, error });
+const retryable = (error = RETRY_MESSAGE): SendResult => ({ ok: false, error, retryable: true });
 
 async function sessionUserId(): Promise<{ id: string | null; supabase: Awaited<ReturnType<typeof createClient>> | null }> {
   try {
@@ -67,7 +72,7 @@ async function authorise(workspaceId: string, trusted?: boolean): Promise<string
 export function checkSendable(
   doc: Pick<DocumentRow, "file_path" | "request_type" | "expires_days" | "title">,
   participants: Pick<Participant, "id" | "name" | "email" | "phone" | "delivery" | "role">[],
-  fields: Pick<FieldRow, "participant_id">[],
+  fields: (Pick<FieldRow, "participant_id"> & Partial<Pick<FieldRow, "type" | "options">>)[],
 ): string | null {
   if (!doc.file_path) return "문서 파일이 없습니다. 문서를 다시 업로드해 주세요.";
   if (!doc.title.trim()) return "문서 제목을 입력해 주세요.";
@@ -85,7 +90,7 @@ export function checkSendable(
     if (p.delivery === "kakao") return "카카오톡 전송은 준비 중입니다. 다른 전송 수단을 선택해 주세요.";
     if (p.delivery === "email") {
       const email = (p.email ?? "").trim().toLowerCase();
-      if (!EMAIL_RE.test(email)) return `${name}님의 이메일 주소를 확인해 주세요.`;
+      if (!isValidEmail(email)) return `${name}님의 이메일 주소를 확인해 주세요.`;
       if (emails.has(email)) return `같은 이메일 주소(${email})를 가진 ${who}가 있습니다.`;
       emails.add(email);
     }
@@ -96,24 +101,43 @@ export function checkSendable(
     const missing = participants.filter((p) => p.role !== "viewer" && !withFields.has(p.id));
     if (missing.length > 0) return "모든 서명자에게 서명 입력란을 1개 이상 배치해 주세요.";
   }
+  // misconfigured fields would accept anything (or nothing) from the signer
+  if (fields.some((f) => f.type === "transcribe" && !(f.options?.sentence ?? "").trim())) {
+    return "따라쓰기 입력란의 문장을 입력해 주세요.";
+  }
+  if (fields.some((f) => f.type === "dropdown" && !(f.options?.items ?? []).some((s) => typeof s === "string" && s.trim()))) {
+    return "드롭다운 입력란에 항목을 1개 이상 입력해 주세요.";
+  }
   return null;
 }
 
-async function loadSendData(documentId: string) {
+type SendData = {
+  admin: ReturnType<typeof createAdminClient>;
+  doc: DocumentRow;
+  participants: Participant[];
+  fields: Pick<FieldRow, "id" | "participant_id" | "type" | "options">[];
+  owner: Profile | null;
+};
+
+/** null = document not found; "error" = a query failed (transient) */
+async function loadSendData(documentId: string): Promise<SendData | null | "error"> {
   const admin = createAdminClient();
-  const { data: doc } = await admin.from("documents").select("*").eq("id", documentId).maybeSingle();
+  const { data: doc, error } = await admin.from("documents").select("*").eq("id", documentId).maybeSingle();
+  if (error) return "error";
   if (!doc) return null;
-  const [{ data: participants }, { data: fields }, { data: owner }] = await Promise.all([
+  const [p, f, o] = await Promise.all([
     admin.from("participants").select("*").eq("document_id", documentId).order("order_index"),
-    admin.from("fields").select("id, participant_id").eq("document_id", documentId),
+    admin.from("fields").select("id, participant_id, type, options").eq("document_id", documentId),
     admin.from("profiles").select("*").eq("id", (doc as DocumentRow).owner_id).maybeSingle(),
   ]);
+  // never read a failed query as "no signers" / "no fields"
+  if (p.error || f.error || o.error) return "error";
   return {
     admin,
     doc: doc as DocumentRow,
-    participants: (participants ?? []) as Participant[],
-    fields: (fields ?? []) as Pick<FieldRow, "id" | "participant_id">[],
-    owner: (owner ?? null) as Profile | null,
+    participants: (p.data ?? []) as Participant[],
+    fields: (f.data ?? []) as SendData["fields"],
+    owner: (o.data ?? null) as Profile | null,
   };
 }
 
@@ -123,6 +147,7 @@ async function loadSendData(documentId: string) {
  */
 export async function validateDocumentForSend(documentId: string, opts: Pick<SendOptions, "trusted"> = {}): Promise<string | null> {
   const data = await loadSendData(documentId);
+  if (data === "error") return RETRY_MESSAGE;
   if (!data) return "문서를 찾을 수 없습니다.";
   const authError = await authorise(data.doc.workspace_id, opts.trusted);
   if (authError) return authError;
@@ -187,6 +212,7 @@ function ccStartEmail(p: {
  */
 export async function sendDocument(documentId: string, opts: SendOptions = {}): Promise<SendResult> {
   const data = await loadSendData(documentId);
+  if (data === "error") return retryable();
   if (!data) return fail("문서를 찾을 수 없습니다.");
   const { admin, doc, participants, fields, owner } = data;
 
@@ -215,7 +241,7 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
     .eq("id", doc.id)
     .eq("status", doc.status)
     .select("id");
-  if (claimError) return fail("문서를 전송하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  if (claimError) return retryable();
   if (!claimed || claimed.length === 0) return fail("이미 전송된 문서입니다.");
 
   const ordered = [...participants].sort((a, b) => a.order_index - b.order_index);
@@ -223,6 +249,13 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
   const pending = sequential ? ordered.slice(0, 1) : ordered;
   const pendingIds = new Set(pending.map((p) => p.id));
   const role = doc.request_type === "view" ? "viewer" : "signer";
+  // every send issues fresh links: links (and identity cookies) of an earlier send — e.g. to an
+  // address that was corrected with 내용 수정 — stop working
+  const tokens = new Map(ordered.map((p) => [p.id, randomUUID()]));
+  const reset = { role, viewed_at: null, signed_at: null, reject_reason: null, draft_values: {} };
+
+  const rollback = () =>
+    admin.from("documents").update({ status: doc.status, requested_at: doc.requested_at, scheduled_at: doc.scheduled_at }).eq("id", doc.id);
 
   const results = await Promise.all(
     ordered.map((p) =>
@@ -230,19 +263,27 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
         .from("participants")
         .update(
           pendingIds.has(p.id)
-            ? { status: "pending", role, sent_at: nowIso, expires_at: expiresAt, viewed_at: null, signed_at: null, reject_reason: null }
-            : { status: "waiting", role, sent_at: null, expires_at: null, viewed_at: null, signed_at: null, reject_reason: null },
+            ? { ...reset, status: "pending", access_token: tokens.get(p.id), sent_at: nowIso, expires_at: expiresAt }
+            : { ...reset, status: "waiting", access_token: tokens.get(p.id), sent_at: null, expires_at: null },
         )
         .eq("id", p.id),
     ),
   );
   if (results.some((r) => r.error)) {
-    // roll the document back so the requester can retry
-    await admin
-      .from("documents")
-      .update({ status: doc.status, requested_at: doc.requested_at, scheduled_at: doc.scheduled_at })
-      .eq("id", doc.id);
-    return fail("참여자 정보를 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    // roll the document back so the requester can retry (nothing was mailed yet)
+    await rollback();
+    return retryable("참여자 정보를 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+
+  // values left over from an interrupted / raced signing never carry into this version, and the
+  // identity-check counters start again
+  const [{ error: valuesError }, { error: attemptsError }] = await Promise.all([
+    admin.from("fields").update({ value: null, filled_at: null }).eq("document_id", doc.id),
+    admin.from("participant_identity_attempts").delete().in("participant_id", ordered.map((p) => p.id)),
+  ]);
+  if (valuesError || attemptsError) {
+    await rollback();
+    return retryable();
   }
 
   const requester = { name: owner?.name ?? "요청자", email: owner?.email ?? "" };
@@ -262,7 +303,7 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
       signerName: p.name,
       signers,
       expiresAt,
-      link: appUrl(`/sign/${p.access_token}`),
+      link: appUrl(`/sign/${tokens.get(p.id)}`),
       message: p.message,
       view,
     });
@@ -271,7 +312,7 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
 
   const cc = (Array.isArray(doc.cc) ? doc.cc : []) as DocumentCc[];
   for (const c of cc) {
-    if (!c?.email || !EMAIL_RE.test(c.email)) continue;
+    if (!c?.email || !isValidEmail(c.email)) continue;
     const mail = ccStartEmail({ title: doc.title, requesterName: requester.name, requesterEmail: requester.email, signers, requestedAt: nowIso, view });
     await sendMail({ to: c.email, toName: c.name || null, subject: mail.subject, html: mail.html, kind: "other", documentId: doc.id });
   }
@@ -281,8 +322,10 @@ export async function sendDocument(documentId: string, opts: SendOptions = {}): 
 
 /**
  * Sends every `scheduled` document of the workspace whose `scheduled_at` has passed.
- * There is no cron — the 문서함 page calls this on load. Documents that became invalid
- * meanwhile are returned to 작성 중 (draft) so the requester can fix them.
+ * There is no cron — the 문서함 page calls this on load. Transient failures leave the document
+ * scheduled (the next load retries it). Documents that became invalid meanwhile go back to the
+ * wizard so the requester can fix them: 작성 중 (draft), or 수정 중 (on_modifying) when the request
+ * had been sent before — and the requester is told why.
  */
 export async function dispatchScheduled(workspaceId: string): Promise<{ sent: number; failed: number }> {
   const authError = await authorise(workspaceId);
@@ -291,7 +334,7 @@ export async function dispatchScheduled(workspaceId: string): Promise<{ sent: nu
   const admin = createAdminClient();
   const { data: due } = await admin
     .from("documents")
-    .select("id, owner_id")
+    .select("id, owner_id, title, requested_at")
     .eq("workspace_id", workspaceId)
     .eq("status", "scheduled")
     .lte("scheduled_at", new Date().toISOString())
@@ -300,7 +343,7 @@ export async function dispatchScheduled(workspaceId: string): Promise<{ sent: nu
 
   let sent = 0;
   let failed = 0;
-  for (const d of due ?? []) {
+  for (const d of (due ?? []) as Pick<DocumentRow, "id" | "owner_id" | "title" | "requested_at">[]) {
     const res = await sendDocument(d.id, { trusted: true, automatic: true });
     if (res.ok) {
       sent++;
@@ -309,11 +352,97 @@ export async function dispatchScheduled(workspaceId: string): Promise<{ sent: nu
     if (res.error === "이미 전송된 문서입니다.") continue; // dispatched concurrently by another request
     failed++;
     console.error(`[send] scheduled document ${d.id} could not be sent: ${res.error}`);
-    await admin
+    if (res.retryable) continue; // stays scheduled, retried on the next load
+    // only a validation failure (or a status change meanwhile) gets here
+    const { data: moved } = await admin
       .from("documents")
-      .update({ status: "draft", scheduled_at: null, last_activity_at: new Date().toISOString() })
+      .update({ status: d.requested_at ? "on_modifying" : "draft", scheduled_at: null, last_activity_at: new Date().toISOString() })
       .eq("id", d.id)
-      .eq("status", "scheduled");
+      .eq("status", "scheduled")
+      .select("id");
+    if (!moved?.length) continue;
+    await safeLog(d.id, "modified", { name: "시스템", email: null }, { auto: true, meta: { scheduled_send_failed: res.error } });
+    const { data: owner } = await admin.from("profiles").select("name, email").eq("id", d.owner_id).maybeSingle();
+    if (owner?.email) {
+      const link = appUrl(`/workspaces/${workspaceId}/documents/d/${d.id}/steps/1`);
+      await sendMail({
+        to: owner.email,
+        toName: owner.name,
+        subject: `[예약 전송 실패] '${d.title}' 문서를 전송하지 못했습니다.`,
+        html: emailLayout({
+          heading: "예약한 문서를 전송하지 못했습니다.",
+          lead: ["예약 시각에 문서를 전송하지 못해 예약이 해제되었습니다.", "문서 내용을 확인한 뒤 다시 전송해 주세요."],
+          rows: [
+            { label: "문서 제목", value: [d.title] },
+            { label: "사유", value: [res.error] },
+          ],
+          cta: { label: "문서 확인하기", href: link },
+        }),
+        kind: "other",
+        documentId: d.id,
+      });
+    }
   }
   return { sent, failed };
+}
+
+/**
+ * Lazy expiry (no cron): in-progress requests of the workspace with a pending participant whose
+ * deadline has passed become `signing_cancelled` (+ "expired" event, notice to the requester).
+ * Authorises like dispatchScheduled. Race-safe: only the request that moves the status logs it.
+ */
+export async function expireOverdue(workspaceId: string): Promise<{ expired: number }> {
+  const authError = await authorise(workspaceId);
+  if (authError) return { expired: 0 };
+
+  const admin = createAdminClient();
+  const { data: overdue, error } = await admin
+    .from("participants")
+    .select("document_id, name, email, documents!inner(id, workspace_id, status, owner_id, title)")
+    .eq("status", "pending")
+    .lt("expires_at", new Date().toISOString())
+    .eq("documents.workspace_id", workspaceId)
+    .eq("documents.status", "in_progress")
+    .limit(100);
+  if (error) {
+    console.error("[send] expiry lookup failed:", error.message);
+    return { expired: 0 };
+  }
+
+  type Row = { document_id: string; name: string; email: string | null; documents: Pick<DocumentRow, "id" | "owner_id" | "title"> };
+  const docs = new Map<string, Row>();
+  for (const r of (overdue ?? []) as unknown as Row[]) if (!docs.has(r.document_id)) docs.set(r.document_id, r);
+
+  let expired = 0;
+  for (const [docId, r] of docs) {
+    const { data: moved } = await admin
+      .from("documents")
+      .update({ status: "signing_cancelled", last_activity_at: new Date().toISOString() })
+      .eq("id", docId)
+      .eq("status", "in_progress")
+      .select("id");
+    if (!moved?.length) continue;
+    expired++;
+    await safeLog(docId, "expired", { name: "시스템", email: null }, { auto: true, meta: { participant: r.email ?? r.name } });
+    const { data: owner } = await admin.from("profiles").select("name, email").eq("id", r.documents.owner_id).maybeSingle();
+    if (owner?.email) {
+      await sendMail({
+        to: owner.email,
+        toName: owner.name,
+        subject: `[기한 만료] '${r.documents.title}' 문서의 서명 기한이 지났습니다.`,
+        html: emailLayout({
+          heading: "서명 기한이 만료되었습니다.",
+          lead: ["기한 안에 서명하지 않은 참여자가 있어 서명 요청이 종료되었습니다.", "필요하면 문서를 다시 요청해 주세요."],
+          rows: [
+            { label: "문서 제목", value: [r.documents.title] },
+            { label: "미서명 참여자", value: [r.name || r.email || "-"] },
+          ],
+          cta: { label: "문서 확인하기", href: appUrl(`/workspaces/${workspaceId}/documents/${docId}`) },
+        }),
+        kind: "cancelled",
+        documentId: docId,
+      });
+    }
+  }
+  return { expired };
 }

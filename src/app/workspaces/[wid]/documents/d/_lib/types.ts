@@ -22,7 +22,11 @@ export function uuid(): string {
 }
 
 export const MAX_PARTICIPANTS = 30;
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** 인증 비밀번호 (signer password) length — short PINs are guessable within the signing period */
+export const AUTH_PASSWORD_MIN = 6;
+export const AUTH_PASSWORD_MAX = 20;
+// linear-time pattern; check the length (≤ 254) first, or use isValidEmail
+export { EMAIL_RE, isValidEmail } from "@/lib/email/address";
 
 /* --------------------------------------------------------------- upload */
 

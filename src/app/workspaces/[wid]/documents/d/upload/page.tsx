@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { getWorkspaceContext } from "@/lib/data/session";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import { createClient } from "@/lib/supabase/server";
 import type { RequestType } from "@/lib/types";
@@ -31,7 +32,7 @@ export default async function UploadPage({ params }: PageProps<"/workspaces/[wid
       requestType: t.request_type,
       pageCount: t.page_count,
       // the rows above were read with the member's RLS session → safe to sign their files
-      thumbUrl: await signedUrl(t.file_path, 60 * 30),
+      thumbUrl: t.file_path ? await signedUrl(paths.template(wid, t.id), 60 * 30) : null,
     })),
   );
 

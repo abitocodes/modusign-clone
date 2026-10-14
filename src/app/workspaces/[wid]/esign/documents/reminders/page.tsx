@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { getWorkspaceContext } from "@/lib/data/session";
-import { canManage, loadOwners, PARTICIPANT_COLUMNS, type RawParticipant } from "@/lib/documents/server";
+import { canManage, expireOverdueSafe, isParticipantExpired, loadOwners, PARTICIPANT_COLUMNS, type RawParticipant } from "@/lib/documents/server";
 import { createClient } from "@/lib/supabase/server";
 import type { RequestType, SigningOrder } from "@/lib/types";
 
@@ -26,6 +26,7 @@ export default async function RemindersPage({ params }: PageProps<"/workspaces/[
   const { wid } = await params;
   const { profile, role } = await getWorkspaceContext(wid);
   const me = { userId: profile.id, role };
+  await expireOverdueSafe(wid);
   const supabase = await createClient();
 
   let query = supabase
@@ -40,7 +41,7 @@ export default async function RemindersPage({ params }: PageProps<"/workspaces/[
   if (error) console.error("[reminders] query failed:", error.message);
 
   const docs = ((data ?? []) as Row[]).filter(
-    (d) => canManage(d, me) && (d.participants ?? []).some((p) => p.status === "pending"),
+    (d) => canManage(d, me) && (d.participants ?? []).some((p) => p.status === "pending" && !isParticipantExpired(p)),
   );
 
   const lastReminded = new Map<string, string>();

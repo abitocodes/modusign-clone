@@ -15,6 +15,8 @@ export type SortDir = "asc" | "desc";
 export interface DocListFilters {
   status: DocFilter;
   mine: boolean;
+  /** documents I requested or take part in (홈 > 진행 현황 cards) */
+  involved: boolean;
   scope: SearchScope;
   q: string;
   dt: DateType;
@@ -32,6 +34,7 @@ export interface DocListFilters {
 export const DEFAULT_FILTERS: DocListFilters = {
   status: "all",
   mine: false,
+  involved: false,
   scope: "title",
   q: "",
   dt: "activity",
@@ -99,6 +102,7 @@ export function parseDocListFilters(sp: RawSearch): DocListFilters {
   return {
     status: Object.hasOwn(DOC_FILTER_LABELS, status) ? (status as DocFilter) : d.status,
     mine: one(sp.mine) === "1",
+    involved: one(sp.involved) === "1",
     scope: pick(one(sp.scope), ["title", "requester", "signer"], d.scope),
     q: one(sp.q).trim().slice(0, 100),
     dt: pick(one(sp.dt), ["activity", "requested", "completed"], d.dt),
@@ -118,6 +122,7 @@ export function filtersToQuery(f: DocListFilters) {
   const qs = new URLSearchParams();
   qs.set("status", f.status);
   if (f.mine) qs.set("mine", "1");
+  if (f.involved) qs.set("involved", "1");
   if (f.q) {
     qs.set("q", f.q);
     if (f.scope !== "title") qs.set("scope", f.scope);
@@ -139,5 +144,5 @@ export function filtersToQuery(f: DocListFilters) {
 
 /** true when any filter other than the sidebar status / sort / paging is active */
 export function hasActiveFilters(f: DocListFilters) {
-  return !!(f.mine || f.q || f.from || f.to || f.label || f.share !== "all" || f.hidden !== "exclude");
+  return !!(f.mine || f.involved || f.q || f.from || f.to || f.label || f.share !== "all" || f.hidden !== "exclude");
 }

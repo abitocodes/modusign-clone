@@ -64,21 +64,18 @@ export async function renderPdfThumbnail(data: ArrayBuffer, width = 240): Promis
 
 /** Load a PDF document from a URL / bytes. Returns the proxy + page sizes. */
 export function usePdfDocument(src: PdfSource) {
-  const [state, setState] = useState<{
+  // the loaded result remembers which `src` it belongs to; loading is derived from that
+  const [result, setResult] = useState<{
+    src: PdfSource;
     doc: PDFDocumentProxy | null;
     pageSizes: PageSize[];
     error: string | null;
-    loading: boolean;
-  }>({ doc: null, pageSizes: [], error: null, loading: !!src });
+  } | null>(null);
 
   useEffect(() => {
-    if (!src) {
-      setState({ doc: null, pageSizes: [], error: null, loading: false });
-      return;
-    }
+    if (!src) return;
     let cancelled = false;
     let loadingTask: { destroy: () => Promise<void> } | null = null;
-    setState((s) => ({ ...s, loading: true, error: null }));
     (async () => {
       try {
         const pdfjs = await loadPdfJs();
@@ -95,9 +92,9 @@ export function usePdfDocument(src: PdfSource) {
           const vp = p.getViewport({ scale: 1 });
           sizes.push({ w: vp.width, h: vp.height });
         }
-        if (!cancelled) setState({ doc, pageSizes: sizes, error: null, loading: false });
+        if (!cancelled) setResult({ src, doc, pageSizes: sizes, error: null });
       } catch (e) {
-        if (!cancelled) setState({ doc: null, pageSizes: [], error: (e as Error).message ?? "PDF를 불러오지 못했습니다.", loading: false });
+        if (!cancelled) setResult({ src, doc: null, pageSizes: [], error: (e as Error).message ?? "PDF를 불러오지 못했습니다." });
       }
     })();
     return () => {
@@ -106,7 +103,13 @@ export function usePdfDocument(src: PdfSource) {
     };
   }, [src]);
 
-  return state;
+  const current = src && result && result.src === src ? result : null;
+  return {
+    doc: current?.doc ?? null,
+    pageSizes: current?.pageSizes ?? [],
+    error: current?.error ?? null,
+    loading: !!src && !current,
+  };
 }
 
 /**

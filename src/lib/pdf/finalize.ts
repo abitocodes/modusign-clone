@@ -9,6 +9,7 @@ import { LineCapStyle, PDFDocument, degrees, rgb, type PDFFont, type PDFImage, t
 
 import { participantStatusLabel } from "@/lib/documents/view";
 import { describeEvent } from "@/lib/events";
+import { checkImageDataUrl } from "@/lib/images";
 import { paths } from "@/lib/storage";
 import { downloadBytes, uploadBytes } from "@/lib/storage-server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -202,7 +203,10 @@ async function embedDataUrl(doc: PDFDocument, dataUrl: string, cache: Map<string
   if (cache.has(dataUrl)) return cache.get(dataUrl) ?? null;
   const m = DATA_URL_RE.exec(dataUrl);
   let img: PDFImage | null = null;
-  if (m) {
+  // never decode an image whose header declares an oversized canvas (decompression bomb)
+  const invalid = m ? checkImageDataUrl(dataUrl) : null;
+  if (invalid) console.error("[finalize] image skipped:", invalid);
+  if (m && !invalid) {
     try {
       const bytes = Buffer.from(m[2], "base64");
       const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
@@ -563,7 +567,8 @@ async function loadDocument(documentId: string): Promise<LoadedDocument> {
     admin.from("fields").select("type, page, x, y, width, height, options, value, filled_at").eq("document_id", documentId).order("created_at"),
     admin.from("document_events").select("*").eq("document_id", documentId).order("created_at", { ascending: true }),
     admin.from("profiles").select("name, email").eq("id", d.owner_id).maybeSingle(),
-    downloadBytes(d.file_path),
+    // the path is rebuilt from the ids, never taken from the (user-editable) row
+    downloadBytes(paths.documentOriginal(d.workspace_id, d.id)),
   ]);
   if (!original) throw new Error("원본 문서 파일을 불러오지 못했습니다.");
   const all = ((fields ?? []) as (StampField & { filled_at: string | null })[]).map((f) => ({ ...f, options: f.options ?? {} }));
@@ -603,8 +608,15 @@ async function renderDocument(l: LoadedDocument, opts: { appendAudit: boolean })
   pdf.setTitle(l.doc.title);
   pdf.setProducer("OpenSign");
   pdf.setCreator("OpenSign");
-  pdf.setModificationDate(new Date());
+  // deterministic output: the same inputs always give the same bytes (and SHA-256)
+  pdf.setModificationDate(stampDate(l.doc));
   return { bytes: await pdf.save(), originalHash };
+}
+
+/** completion time of the document (generation time only for previews of unfinished documents) */
+function stampDate(doc: Pick<DocumentRow, "completed_at">) {
+  const t = doc.completed_at ? new Date(doc.completed_at) : null;
+  return t && !Number.isNaN(t.getTime()) ? t : new Date();
 }
 
 /* ---------------------------------------------------------------- exports */
@@ -622,37 +634,113 @@ export interface FinalizeResult {
   auditPath: string;
 }
 
+/** Generated PDFs must fit the bucket limit (30 MiB, migration 20261014030000). */
+export const MAX_GENERATED_PDF_BYTES = 30 * 1024 * 1024;
+/** A claim older than this is considered abandoned; failed attempts are retried after it. */
+const FINALIZE_RETRY_MS = 5 * 60 * 1000;
+
+/** Another request is generating the files right now (or the last attempt failed moments ago). */
+export class FinalizeBusyError extends Error {
+  constructor(readonly failed: boolean) {
+    super(failed ? "완료 문서를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요." : "완료 문서를 준비 중입니다. 잠시 후 다시 시도해 주세요.");
+  }
+}
+
+type StoredRow = Pick<DocumentRow, "id" | "workspace_id" | "completed_file_path" | "completed_hash">;
+
+/** The files a previous run stored (write-once), or null when they are not there (yet). */
+async function storedResult(row: StoredRow): Promise<FinalizeResult | null> {
+  if (!row.completed_file_path || !row.completed_hash) return null;
+  const completedPath = paths.documentCompleted(row.workspace_id, row.id);
+  const certPath = auditPath(row.workspace_id, row.id);
+  const [completedBytes, auditBytes] = await Promise.all([downloadBytes(completedPath), downloadBytes(certPath)]);
+  if (!completedBytes || !auditBytes) return null;
+  return { completedBytes, auditBytes, hash: row.completed_hash, completedPath, auditPath: certPath };
+}
+
 /**
  * Builds the completed PDF and the separate audit certificate of a document whose signers have
  * all signed, uploads both (paths.documentCompleted / audit.pdf) and stores
  * documents.completed_file_path, completed_hash and audit_file_path. Throws on failure.
+ *
+ * Write-once and single-flight: the first run claims the document (documents.finalizing_at); once
+ * the files are stored, every later call returns those same files and hash. While another run is
+ * busy (or failed less than FINALIZE_RETRY_MS ago) it throws FinalizeBusyError.
  * Server-only; callers must have authorised the request.
  */
 export async function finalizeDocument(documentId: string): Promise<FinalizeResult> {
-  const l = await loadDocument(documentId);
-  const { bytes: completedBytes, originalHash } = await renderDocument(l, { appendAudit: true });
-  const hash = sha256(completedBytes);
-
-  const certificate = await PDFDocument.create();
-  const certFonts = await embedFonts(certificate);
-  drawAudit(certificate, certFonts, auditData(l, originalHash, hash));
-  certificate.setTitle(`감사 추적 인증서 - ${l.doc.title}`);
-  certificate.setProducer("OpenSign");
-  certificate.setCreator("OpenSign");
-  const auditBytes = await certificate.save();
-
-  const completedPath = paths.documentCompleted(l.doc.workspace_id, l.doc.id);
-  const certPath = auditPath(l.doc.workspace_id, l.doc.id);
-  await uploadBytes(completedPath, completedBytes);
-  await uploadBytes(certPath, auditBytes);
-
-  const { error } = await createAdminClient()
+  const admin = createAdminClient();
+  const staleBefore = new Date(Date.now() - FINALIZE_RETRY_MS).toISOString();
+  const { data: claimed, error: claimError } = await admin
     .from("documents")
-    .update({ completed_file_path: completedPath, completed_hash: hash, audit_file_path: certPath })
-    .eq("id", l.doc.id);
-  if (error) throw new Error(error.message);
+    .update({ finalizing_at: new Date().toISOString() })
+    .eq("id", documentId)
+    .eq("status", "completed")
+    .is("completed_file_path", null)
+    .or(`finalizing_at.is.null,finalizing_at.lt."${staleBefore}"`)
+    .select("id");
+  if (claimError) throw new Error(claimError.message);
+  if (!claimed?.length) {
+    const { data: row } = await admin
+      .from("documents")
+      .select("id, workspace_id, status, completed_file_path, completed_hash, finalize_error")
+      .eq("id", documentId)
+      .maybeSingle();
+    if (!row) throw new Error("문서를 찾을 수 없습니다.");
+    if (row.status !== "completed") throw new Error("아직 서명이 완료되지 않은 문서입니다.");
+    const stored = await storedResult(row as StoredRow);
+    if (stored) return stored;
+    throw new FinalizeBusyError(!!row.finalize_error);
+  }
 
-  return { completedBytes, auditBytes, hash, completedPath, auditPath: certPath };
+  try {
+    const l = await loadDocument(documentId);
+    const { bytes: completedBytes, originalHash } = await renderDocument(l, { appendAudit: true });
+    const hash = sha256(completedBytes);
+
+    const certificate = await PDFDocument.create({ updateMetadata: false });
+    const certFonts = await embedFonts(certificate);
+    drawAudit(certificate, certFonts, auditData(l, originalHash, hash));
+    certificate.setTitle(`감사 추적 인증서 - ${l.doc.title}`);
+    certificate.setProducer("OpenSign");
+    certificate.setCreator("OpenSign");
+    certificate.setCreationDate(stampDate(l.doc));
+    certificate.setModificationDate(stampDate(l.doc));
+    const auditBytes = await certificate.save();
+
+    if (completedBytes.byteLength > MAX_GENERATED_PDF_BYTES || auditBytes.byteLength > MAX_GENERATED_PDF_BYTES) {
+      throw new Error(`완료 문서가 너무 큽니다 (${Math.ceil(completedBytes.byteLength / 1024 / 1024)}MB). 저장 한도를 넘었습니다.`);
+    }
+
+    const completedPath = paths.documentCompleted(l.doc.workspace_id, l.doc.id);
+    const certPath = auditPath(l.doc.workspace_id, l.doc.id);
+    await uploadBytes(completedPath, completedBytes);
+    await uploadBytes(certPath, auditBytes);
+
+    const { data: won, error } = await admin
+      .from("documents")
+      .update({ completed_file_path: completedPath, completed_hash: hash, audit_file_path: certPath, finalizing_at: null, finalize_error: null })
+      .eq("id", l.doc.id)
+      .is("completed_file_path", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!won?.length) {
+      // an abandoned-claim takeover finished first: hand out what is stored
+      const { data: row } = await admin
+        .from("documents")
+        .select("id, workspace_id, completed_file_path, completed_hash")
+        .eq("id", l.doc.id)
+        .maybeSingle();
+      const stored = row ? await storedResult(row as StoredRow) : null;
+      if (stored) return stored;
+    }
+    return { completedBytes, auditBytes, hash, completedPath, auditPath: certPath };
+  } catch (e) {
+    // keep finalizing_at as the time of this attempt → the next retry waits FINALIZE_RETRY_MS
+    const message = ((e as Error).message || "unknown error").slice(0, 500);
+    await admin.from("documents").update({ finalize_error: message }).eq("id", documentId).is("completed_file_path", null);
+    throw e;
+  }
 }
 
 /**

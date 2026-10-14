@@ -2,6 +2,8 @@ import { Send } from "lucide-react";
 import Link from "next/link";
 
 import { getWorkspaceContext } from "@/lib/data/session";
+import { dispatchScheduledSafe, expireOverdueSafe } from "@/lib/documents/server";
+import { dayRangeToTimestamps } from "@/lib/documents/view";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentRow, Participant, Profile } from "@/lib/types";
 import { docMatchesFilter, type DocFilter } from "@/lib/utils";
@@ -27,12 +29,15 @@ const MAX_PAGES = 20;
 
 /**
  * 진행 현황 counts for the current user in this workspace: documents the user requested or
- * participates in, whose request date (or creation date before sending) lies in the period.
+ * participates in (문서함 `involved=1`), whose request date lies in the period (문서함
+ * `dt=requested&from&to`). 예약 중 is a current state and counts every scheduled document.
  * Classification uses the same rules as the 문서함 filters (`docMatchesFilter`).
  */
 async function loadProgress(wid: string, me: Profile, period: ResolvedPeriod): Promise<Record<string, number> | null> {
   const supabase = await createClient();
-  const fromIso = period.from.toISOString();
+  // the same KST day boundaries as the 문서함 date filter (dt=requested&from=…&to=…)
+  const range = dayRangeToTimestamps(period.fromDay, period.toDay);
+  const fromIso = new Date(range.gte ?? period.from).toISOString();
   const docs: DocLite[] = [];
   for (let i = 0; i < MAX_PAGES; i++) {
     const { data, error } = await supabase
@@ -40,7 +45,7 @@ async function loadProgress(wid: string, me: Profile, period: ResolvedPeriod): P
       .select("id, owner_id, status, request_type, created_at, requested_at, participants(email, status)")
       .eq("workspace_id", wid)
       .eq("hidden", false)
-      .or(`created_at.gte."${fromIso}",requested_at.gte."${fromIso}"`)
+      .or(`requested_at.gte."${fromIso}",status.eq.scheduled`)
       .order("created_at", { ascending: false })
       .range(i * PAGE, i * PAGE + PAGE - 1);
     if (error) return null;
@@ -49,23 +54,41 @@ async function loadProgress(wid: string, me: Profile, period: ResolvedPeriod): P
   }
 
   const myEmail = me.email.toLowerCase();
-  const from = period.from.getTime();
-  const to = period.to?.getTime() ?? Number.POSITIVE_INFINITY;
+  const from = new Date(fromIso).getTime();
+  const to = range.lt ? new Date(range.lt).getTime() : Number.POSITIVE_INFINITY;
   const counts: Record<string, number> = Object.fromEntries(STATS.map((s) => [s.filter, 0]));
   for (const d of docs) {
     const parts = d.participants ?? [];
     const mine = d.owner_id === me.id || parts.some((p) => (p.email ?? "").toLowerCase() === myEmail);
     if (!mine) continue;
-    const at = new Date(d.requested_at ?? d.created_at).getTime();
-    if (at < from || at >= to) continue;
+    if (d.status === "scheduled") {
+      counts.scheduled += 1;
+      continue;
+    }
+    const at = d.requested_at ? new Date(d.requested_at).getTime() : Number.NaN;
+    if (!(at >= from && at < to)) continue;
     for (const s of STATS) if (docMatchesFilter(s.filter, d, parts, myEmail)) counts[s.filter] += 1;
   }
   return counts;
 }
 
+/** 문서함 link of a card: the same scope (involved) and, except 예약 중, the same request period. */
+function cardHref(base: string, filter: DocFilter, period: ResolvedPeriod) {
+  const qs = new URLSearchParams({ status: filter, involved: "1" });
+  if (filter !== "scheduled") {
+    qs.set("dt", "requested");
+    qs.set("from", period.fromDay);
+    qs.set("to", period.toDay);
+  }
+  return `${base}/esign/documents/documents?${qs.toString()}`;
+}
+
 async function loadHome(wid: string, sp: Record<string, string | string[] | undefined>) {
   const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const { profile } = await getWorkspaceContext(wid);
+  // same lazy steps as the 문서함, so the counts match the list they link to
+  await dispatchScheduledSafe(wid);
+  await expireOverdueSafe(wid);
   const period = resolvePeriod({ period: first(sp.period), from: first(sp.from), to: first(sp.to) }, new Date());
   const counts = await loadProgress(wid, profile, period);
   return { profile, period, counts };
@@ -81,7 +104,7 @@ export default async function HomePage({ params, searchParams }: PageProps<"/wor
     label: s.label,
     dotClass: s.dotClass,
     count: counts?.[s.filter] ?? 0,
-    href: `${base}/esign/documents/documents?status=${s.filter}`,
+    href: cardHref(base, s.filter, period),
   }));
 
   return (

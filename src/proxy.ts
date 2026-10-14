@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/sign/", "/link/", "/api/sign/", "/dev/"];
+// /dev/mailbox shows live sign links: it is not public (admins only, see the page)
+const PUBLIC_PREFIXES = ["/login", "/sign/", "/link/", "/api/sign/"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

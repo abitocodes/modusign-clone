@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import type { SavedSignature } from "@/components/signature";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import type { FieldRow } from "@/lib/types";
 
@@ -109,7 +110,8 @@ async function buildView(token: string): Promise<SignView> {
     return { kind: "identity", token: me.access_token, check: identityCheck(me) ?? "email", needPassword: !!me.auth_password };
   }
 
-  const pdfUrl = await signedUrl(doc.file_path, PDF_URL_TTL);
+  // signed with the service role: the path is rebuilt from the ids, never taken from the row
+  const pdfUrl = doc.file_path ? await signedUrl(paths.documentOriginal(doc.workspace_id, doc.id), PDF_URL_TTL) : null;
   const completed = doc.status === "completed";
 
   if (done || completed) {

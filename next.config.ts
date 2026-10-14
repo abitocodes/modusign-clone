@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/sign/[token]": ["./public/fonts/*.ttf"],
     "/api/sign/[token]/download": ["./public/fonts/*.ttf"],
+    "/api/documents/[docId]/download": ["./public/fonts/*.ttf"],
     "/link/[token]": ["./public/fonts/*.ttf"],
   },
   experimental: {

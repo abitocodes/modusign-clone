@@ -14,9 +14,13 @@ import type { OwnerInfo, ProgressInfo, PublicParticipant } from "./view";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (s: unknown): s is string => typeof s === "string" && UUID_RE.test(s);
 
-/** Participant columns selected by this area (access_token is stripped before reaching the browser). */
+/**
+ * Participant columns selected by this area. The access token is not readable through the API
+ * (column privileges): own sign links come from `loadMyPendingTokens`, the server reads other
+ * tokens with the service role after authorising.
+ */
 export const PARTICIPANT_COLUMNS =
-  "id, order_index, role, name, email, status, delivery, sent_at, viewed_at, signed_at, expires_at, reject_reason, access_token";
+  "id, order_index, role, name, email, status, delivery, sent_at, viewed_at, signed_at, expires_at, reject_reason";
 
 export type RawParticipant = Pick<
   Participant,
@@ -32,7 +36,6 @@ export type RawParticipant = Pick<
   | "signed_at"
   | "expires_at"
   | "reject_reason"
-  | "access_token"
 >;
 
 export function toPublicParticipant(p: RawParticipant): PublicParticipant {
@@ -51,13 +54,41 @@ export function toPublicParticipant(p: RawParticipant): PublicParticipant {
   };
 }
 
-/** My access token when it is my turn on this document (pending). */
-export function myPendingToken(participants: RawParticipant[], myEmail: string) {
-  const me = participants.find((p) => p.status === "pending" && !!p.email && p.email.toLowerCase() === myEmail.toLowerCase());
-  return me?.access_token ?? null;
+export type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * My own sign links: document id → access token, for the given in-progress documents where I am
+ * the pending (not expired) participant (SECURITY DEFINER RPC keyed on the session e-mail).
+ */
+export async function loadMyPendingTokens(supabase: ServerSupabase, docIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(docIds)].filter(isUuid);
+  const map = new Map<string, string>();
+  if (!ids.length) return map;
+  const { data, error } = await supabase.rpc("my_pending_sign_tokens", { p_document_ids: ids });
+  if (error) {
+    console.error("[documents] my_pending_sign_tokens failed:", error.message);
+    return map;
+  }
+  for (const row of (data ?? []) as { document_id: string; access_token: string }[]) map.set(row.document_id, row.access_token);
+  return map;
 }
 
-export type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
+/** Has the participant's signing deadline passed? */
+export function isParticipantExpired(p: Pick<Participant, "expires_at">, now = Date.now()) {
+  return !!p.expires_at && new Date(p.expires_at).getTime() < now;
+}
+
+/**
+ * Pending 직접 대면 signers of an in-progress document the user manages (no secrets — the link
+ * is resolved by the startInPersonSigning action).
+ */
+export function inPersonPending(doc: { status: string }, participants: RawParticipant[], manage: boolean) {
+  if (!manage || doc.status !== "in_progress") return [];
+  return participants
+    .filter((p) => p.delivery === "in_person" && p.status === "pending" && !isParticipantExpired(p))
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((p) => ({ id: p.id, name: p.name || "서명자" }));
+}
 
 export interface Actor {
   supabase: ServerSupabase;
@@ -113,6 +144,19 @@ export async function dispatchScheduledSafe(wid: string) {
     await mod.dispatchScheduled?.(wid);
   } catch (e) {
     console.error("[documents] dispatchScheduled failed:", (e as Error)?.message ?? e);
+  }
+}
+
+/**
+ * Closes in-progress requests whose pending signer's deadline has passed (signing_cancelled +
+ * "expired" event). No cron either — the 문서함, reminders, home and viewer pages call it on load.
+ */
+export async function expireOverdueSafe(wid: string) {
+  try {
+    const mod: { expireOverdue?: (workspaceId: string) => Promise<unknown> } = await import("@/lib/server/send");
+    await mod.expireOverdue?.(wid);
+  } catch (e) {
+    console.error("[documents] expireOverdue failed:", (e as Error)?.message ?? e);
   }
 }
 

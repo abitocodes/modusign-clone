@@ -3,6 +3,7 @@
  * Used by the browser (instant feedback) and by the Server Actions (authoritative checks).
  */
 import { validateFields, type EditorField } from "@/components/editor/editor-model";
+import { EMAIL_RE, isValidEmail } from "@/lib/email/address";
 import { parseDelimited } from "@/lib/tools/contacts";
 import { FIELD_ORDER } from "@/lib/fields";
 import type { FieldOptions, FieldType, PageSize, RequestType, SigningOrder, TemplateField, TemplateRole } from "@/lib/types";
@@ -20,12 +21,12 @@ export const BULK_TITLE_MAX = 100;
 export const LINK_TITLE_MAX = 100;
 export const PERSON_NAME_MAX = 50;
 
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// linear-time pattern (see @/lib/email/address); isValidEmail checks the length first
+export { EMAIL_RE, isValidEmail };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROLE_KEY_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
-export const isValidEmail = (v: string) => v.length <= 254 && EMAIL_RE.test(v);
 
 /* ------------------------------------------------------------------ roles */
 
@@ -311,7 +312,7 @@ export function parseRecipientsText(text: string): RecipientInput[] {
     let [name = "", email = ""] = cells;
     if (i === 0 && HEADER_WORDS.includes(name.trim().toLowerCase())) return;
     // tolerate "이메일, 이름" order
-    if (EMAIL_RE.test(name.trim()) && !EMAIL_RE.test(email.trim())) [name, email] = [email, name];
+    if (isValidEmail(name.trim()) && !isValidEmail(email.trim())) [name, email] = [email, name];
     out.push({ name: name.trim(), email: email.trim() });
   });
   return out;

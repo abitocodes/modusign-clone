@@ -4,16 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { appUrl, sendMail } from "@/lib/email/mailer";
 import { rejectedEmail } from "@/lib/email/templates";
+import { checkImageDataUrl } from "@/lib/images";
 import type { FieldRow } from "@/lib/types";
 
 import { afterParticipantDone, safeLog } from "./_lib/complete";
 import {
   clearIdentityFailures,
   identityCheck,
-  identityLocked,
+  identityLock,
   isExpired,
   isVerified,
   loadSignContext,
+  lockMessage,
   recordIdentityFailure,
   safeEqual,
   seoulDay,
@@ -26,8 +28,8 @@ import {
   fieldLabel,
   hasValue,
   isManual,
-  MAX_IMAGE_DATA_URL,
   MAX_REJECT_REASON,
+  maxValueLength,
   normalizeSentence,
 } from "./_lib/validate";
 
@@ -76,6 +78,20 @@ function participantStateError(ctx: SignContext): string | null {
   }
 }
 
+/** message for a verdict of the sign_submit / sign_reject RPCs other than 'ok' */
+function claimError(verdict: unknown): string {
+  switch (verdict) {
+    case "doc_state":
+      return "문서 상태가 변경되어 처리할 수 없습니다. 페이지를 새로고침해 주세요.";
+    case "expired":
+      return "서명 기한이 만료되었습니다.";
+    case "not_found":
+      return "유효하지 않은 서명 링크입니다.";
+    default:
+      return "이미 처리된 서명입니다. 페이지를 새로고침해 주세요.";
+  }
+}
+
 /** loads the context and checks: link valid, document in progress, my turn, not expired, verified */
 async function loadActive(token: unknown): Promise<SignContext | string> {
   if (typeof token !== "string") return "유효하지 않은 서명 링크입니다.";
@@ -89,17 +105,7 @@ async function loadActive(token: unknown): Promise<SignContext | string> {
 
 const myFields = (ctx: SignContext) => ctx.fields.filter((f) => f.participant_id === ctx.me.id);
 
-/** first bytes of a data URL must really be a PNG / JPEG */
-function imageBytesOk(dataUrl: string) {
-  const comma = dataUrl.indexOf(",");
-  if (comma < 0) return false;
-  const head = Buffer.from(dataUrl.slice(comma + 1, comma + 17), "base64");
-  const png = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
-  const jpg = head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
-  return png || jpg;
-}
-
-/** keeps only string values of my own manual fields, bounded in size */
+/** keeps only string values of my own manual fields, bounded in size per field type */
 function sanitizeValues(fields: FieldRow[], input: unknown): Record<string, string> | string {
   if (!input || typeof input !== "object" || Array.isArray(input)) return "잘못된 요청입니다.";
   const raw = input as Record<string, unknown>;
@@ -110,7 +116,9 @@ function sanitizeValues(fields: FieldRow[], input: unknown): Record<string, stri
     const v = raw[f.id];
     if (v == null) continue;
     if (typeof v !== "string") return "잘못된 입력값이 있습니다.";
-    if (v.length > MAX_IMAGE_DATA_URL) return `${fieldLabel(f)}: 용량이 너무 큽니다.`;
+    // typed values may still carry whitespace that is trimmed / collapsed when signing
+    const cap = f.type === "signature" || f.type === "image" ? maxValueLength(f.type) : maxValueLength(f.type) * 2;
+    if (v.length > cap) return `${fieldLabel(f)}: 용량이 너무 큽니다.`;
     total += v.length;
     out[f.id] = f.type === "signature" || f.type === "image" || f.type === "transcribe" ? v : v.replace(/\r?\n/g, " ");
   }
@@ -132,18 +140,27 @@ export async function verifyIdentity(
   if (!ctx) return fail("유효하지 않은 서명 링크입니다.");
   if (["draft", "on_modifying", "scheduled"].includes(ctx.doc.status)) return fail("아직 서명 요청이 전송되지 않은 문서입니다.");
   if (ctx.me.status === "waiting") return fail("아직 서명 차례가 아닙니다.");
-  if (identityLocked(ctx.me.id)) {
+
+  const check = identityCheck(ctx.me);
+  // 직접 대면: there is nothing to verify (isVerified accepts it) — never issue a cookie for it, so
+  // switching the participant to e-mail later cannot reuse a check that never happened
+  if (check === null) return { ok: true };
+
+  const locked = await identityLock(ctx.admin, ctx.me.id);
+  if (locked) {
     await sleep(400);
-    return fail("본인 확인에 여러 번 실패했습니다. 10분 후 다시 시도해 주세요.");
+    return fail(lockMessage(locked));
   }
 
   const wrong = async (field: "email" | "phone" | "password", error: string): Promise<VerifyResult> => {
-    recordIdentityFailure(ctx.me.id);
+    const lock = await recordIdentityFailure(ctx.admin, ctx.me.id);
     await sleep(400);
-    return { ok: false, field, error };
+    if (lock?.permanent) {
+      await safeLog(ctx.doc.id, "identity_locked", { name: ctx.me.name, email: ctx.me.email }, { meta: { participant_id: ctx.me.id } });
+    }
+    return { ok: false, field, error: lock ? `${error} ${lockMessage(lock)}` : error };
   };
 
-  const check = identityCheck(ctx.me);
   if (check === "email") {
     const typed = String(input.email ?? "").trim().toLowerCase();
     if (!typed || typed !== (ctx.me.email ?? "").trim().toLowerCase()) {
@@ -156,15 +173,20 @@ export async function verifyIdentity(
       return wrong("phone", "서명 요청을 받은 휴대폰 번호와 일치하지 않습니다.");
     }
   }
-  if (check !== null && ctx.me.auth_password) {
+  if (ctx.me.auth_password) {
     const typed = String(input.password ?? "");
     if (!typed || !safeEqual(typed, ctx.me.auth_password)) {
       return wrong("password", "비밀번호가 일치하지 않습니다.");
     }
   }
 
-  clearIdentityFailures(ctx.me.id);
-  await setVerifiedCookie(ctx.me);
+  await clearIdentityFailures(ctx.admin, ctx.me.id);
+  try {
+    await setVerifiedCookie(ctx.me);
+  } catch (e) {
+    console.error("[sign] identity cookie not issued:", (e as Error).message);
+    return fail("본인 확인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
   revalidatePath(`/sign/${ctx.me.access_token}`);
   return { ok: true };
 }
@@ -228,8 +250,9 @@ export async function submitSignature(token: string, values: Record<string, stri
     const value = f.type === "text" ? raw.trim() : f.type === "transcribe" ? normalizeSentence(raw) : raw;
     const err = fieldError(f, value);
     if (err) return fail(`${fieldLabel(f)}: ${err}`);
-    if ((f.type === "signature" || f.type === "image") && hasValue(f, value) && !imageBytesOk(value)) {
-      return fail(`${fieldLabel(f)}: 올바른 이미지가 아닙니다.`);
+    if (f.type === "signature" || f.type === "image") {
+      const imageErr = hasValue(f, value) ? checkImageDataUrl(value) : null;
+      if (imageErr) return fail(`${fieldLabel(f)}: ${imageErr}`);
     }
     if (hasValue(f, value) || f.type === "checkbox") finalValues.push({ field: f, value: f.type === "checkbox" ? (value === "true" ? "true" : "") : value });
   }
@@ -242,26 +265,18 @@ export async function submitSignature(token: string, values: Record<string, stri
     if (claimed?.length && !view) await safeLog(doc.id, "viewed", { name: me.name, email: me.email }, { meta: { participant_id: me.id } });
   }
 
-  // values first (only fields that were never submitted), so a concurrent completion sees them
-  const saved = await Promise.all(
-    finalValues.map(({ field, value }) =>
-      admin
-        .from("fields")
-        .update({ value: value || null, filled_at: now })
-        .eq("id", field.id)
-        .eq("participant_id", me.id)
-        .is("filled_at", null),
-    ),
-  );
-  if (saved.some((r) => r.error)) return fail("입력한 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-
-  const { data: claimed } = await admin
-    .from("participants")
-    .update(view ? { status: "viewed", viewed_at: me.viewed_at ?? now, draft_values: {} } : { status: "signed", signed_at: now, draft_values: {} })
-    .eq("id", me.id)
-    .eq("status", "pending")
-    .select("id");
-  if (!claimed?.length) return fail("이미 처리된 서명입니다. 페이지를 새로고침해 주세요.");
+  // one transaction, serialised on the document row: document still in progress, my turn, not
+  // expired → my values (the ones submitted now, always overwritten) + me signed / viewed
+  const { data: verdict, error: submitError } = await admin.rpc("sign_submit", {
+    p_participant_id: me.id,
+    p_values: Object.fromEntries(finalValues.map(({ field, value }) => [field.id, value])),
+    p_view: view,
+  });
+  if (submitError) {
+    console.error("[sign] submit failed:", submitError.message);
+    return fail("입력한 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+  if (verdict !== "ok") return fail(claimError(verdict));
 
   await safeLog(doc.id, view ? "viewed" : "signed", { name: me.name, email: me.email }, { meta: { participant_id: me.id } });
 
@@ -282,16 +297,14 @@ export async function rejectSignature(token: string, reason: string): Promise<Ac
   if (!text) return fail("거절 사유를 입력해 주세요.");
   if (text.length > MAX_REJECT_REASON) return fail(`거절 사유는 ${MAX_REJECT_REASON}자 이내로 입력해 주세요.`);
 
-  const now = new Date().toISOString();
-  const { data: claimed } = await admin
-    .from("participants")
-    .update({ status: "rejected", reject_reason: text, draft_values: {} })
-    .eq("id", me.id)
-    .eq("status", "pending")
-    .select("id");
-  if (!claimed?.length) return fail("이미 처리된 서명입니다. 페이지를 새로고침해 주세요.");
+  // participant rejected + document rejected in one transaction (only while it is in progress)
+  const { data: verdict, error: rejectError } = await admin.rpc("sign_reject", { p_participant_id: me.id, p_reason: text });
+  if (rejectError) {
+    console.error("[sign] reject failed:", rejectError.message);
+    return fail("서명을 거절하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+  if (verdict !== "ok") return fail(claimError(verdict));
 
-  await admin.from("documents").update({ status: "rejected", last_activity_at: now }).eq("id", doc.id).eq("status", "in_progress");
   await safeLog(doc.id, "rejected", { name: me.name, email: me.email }, { meta: { reason: text, participant_id: me.id } });
 
   if (owner?.email) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CircleAlert, Eye, EyeOff, FileSpreadsheet, RefreshCw } from "lucide-react";
+import { BellRing, CircleAlert, Eye, EyeOff, FileSpreadsheet, RefreshCw, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -136,12 +136,20 @@ export function DocumentsView({
         title={title}
         chips={
           <>
-            <FilterChip active={!filters.mine} onClick={() => go({ mine: false })}>
+            <FilterChip active={!filters.mine && !filters.involved} onClick={() => go({ mine: false, involved: false })}>
               전체
             </FilterChip>
-            <FilterChip active={filters.mine} onClick={() => go({ mine: true })}>
+            <FilterChip active={filters.mine} onClick={() => go({ mine: true, involved: false })}>
               내 문서
             </FilterChip>
+            {filters.involved && (
+              <FilterChip active onClick={() => go({ involved: false })}>
+                <span className="inline-flex items-center gap-1">
+                  내가 요청·참여한 문서
+                  <X className="size-3" aria-label="필터 해제" />
+                </span>
+              </FilterChip>
+            )}
           </>
         }
         actions={

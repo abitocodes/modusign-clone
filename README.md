@@ -41,6 +41,11 @@ npm run dev                 # http://localhost:3000
    ```
    생성된 초기 비밀번호는 `admin-credentials.local.txt`(git 제외)에 저장됩니다. 첫 로그인 후 변경하세요.
 5. 메일 발송이 필요하면 `.env.local` 의 SMTP_* 값을 설정합니다(미설정 시 `outbound_emails` 테이블에만 기록).
+   실제 운영에서는 SMTP_* 를 반드시 설정하세요. `/dev/mailbox` 는 관리자용 디버깅 화면이며 서명 링크 전달 수단이 아닙니다.
+6. `SIGN_COOKIE_SECRET`(32자 이상 임의 문자열)을 설정합니다(서명자 본인 확인 쿠키 키).
+7. 감사 추적의 접속 IP는 신뢰할 수 있는 리버스 프록시가 설정한 값만 사용합니다. 앱 앞에 nginx 등 프록시를 두고
+   `X-Forwarded-For` 에 주소를 덧붙이게 하거나(`TRUSTED_PROXY_HOPS`), 클라이언트 주소로 덮어쓰는 헤더를
+   `TRUSTED_IP_HEADER` 로 지정하세요. 프록시 없이 `next start` 만 실행하면 클라이언트가 보낸 값을 걸러낼 수 없습니다.
 
 ## 구조
 - `src/app` — 라우트 (App Router). 인증 처리는 `src/proxy.ts`

@@ -4,8 +4,10 @@ import { getWorkspaceContext } from "@/lib/data/session";
 import {
   canManage,
   dispatchScheduledSafe,
+  expireOverdueSafe,
+  inPersonPending,
+  loadMyPendingTokens,
   loadOwners,
-  myPendingToken,
   PARTICIPANT_COLUMNS,
   toPublicParticipant,
   type RawParticipant,
@@ -63,8 +65,9 @@ export default async function DocumentListPage({ params, searchParams }: PagePro
   const { wid } = await params;
   const filters = parseDocListFilters(await searchParams);
 
-  // Send scheduled documents that are due before listing (no cron in this app).
+  // Send scheduled documents that are due and close expired requests before listing (no cron in this app).
   await dispatchScheduledSafe(wid);
+  await expireOverdueSafe(wid);
 
   const { profile, role } = await getWorkspaceContext(wid);
   const me = { userId: profile.id, role };
@@ -119,6 +122,8 @@ export default async function DocumentListPage({ params, searchParams }: PagePro
     // Drafts are personal work-in-progress: only their author sees them.
     if (d.status === "draft" && d.owner_id !== profile.id) return false;
     if (!docMatchesFilter(filters.status, d, participants, myEmail)) return false;
+    // 홈 > 진행 현황 cards: documents I requested or take part in
+    if (filters.involved && d.owner_id !== profile.id && !participants.some((p) => (p.email ?? "").toLowerCase() === myEmail)) return false;
     if (needle && filters.scope === "requester") {
       const o = owners.get(d.owner_id);
       if (!includesCI(o?.name, needle) && !includesCI(o?.email, needle)) return false;
@@ -131,8 +136,14 @@ export default async function DocumentListPage({ params, searchParams }: PagePro
 
   const pageCount = Math.max(1, Math.ceil(matched.length / filters.size));
   const page = Math.min(filters.page, pageCount);
-  const pageRows: DocListItem[] = matched.slice((page - 1) * filters.size, page * filters.size).map((d) => {
+  const visible = matched.slice((page - 1) * filters.size, page * filters.size);
+  const myTokens = await loadMyPendingTokens(
+    supabase,
+    visible.filter((d) => d.status === "in_progress").map((d) => d.id),
+  );
+  const pageRows: DocListItem[] = visible.map((d) => {
     const participants = d.participants ?? [];
+    const manage = canManage(d, me);
     return {
       id: d.id,
       title: d.title,
@@ -141,7 +152,8 @@ export default async function DocumentListPage({ params, searchParams }: PagePro
       signing_order: d.signing_order,
       owner: owners.get(d.owner_id) ?? null,
       hasOriginal: !!d.file_path,
-      hasCompleted: !!d.completed_file_path,
+      // the download route generates a missing completed PDF on demand
+      hasCompleted: d.status === "completed" || !!d.completed_file_path,
       label_ids: d.label_ids ?? [],
       hidden: d.hidden,
       scheduled_at: d.scheduled_at,
@@ -149,8 +161,9 @@ export default async function DocumentListPage({ params, searchParams }: PagePro
       completed_at: d.completed_at,
       last_activity_at: d.last_activity_at,
       participants: participants.map(toPublicParticipant).sort((a, b) => a.order_index - b.order_index),
-      myToken: d.status === "in_progress" ? myPendingToken(participants, myEmail) : null,
-      canManage: canManage(d, me),
+      myToken: myTokens.get(d.id) ?? null,
+      inPersonPending: inPersonPending(d, participants, manage),
+      canManage: manage,
       isOwner: d.owner_id === profile.id,
     };
   });

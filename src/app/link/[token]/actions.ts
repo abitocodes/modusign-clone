@@ -1,8 +1,11 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { setVerifiedCookie } from "@/app/sign/[token]/_lib/server";
+import { cleanPersonName } from "@/lib/email/address";
+import { clientIp } from "@/lib/events";
 import { sendDocument } from "@/lib/server/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PERSON_NAME_MAX, isValidEmail } from "@/lib/templates/model";
@@ -17,9 +20,25 @@ export interface LinkFormState {
   values: { name: string; email: string };
 }
 
-/** per link: documents per minute / per e-mail address: documents per 10 minutes */
-const LINK_RATE_PER_MINUTE = 10;
-const EMAIL_RATE_PER_10_MIN = 3;
+/**
+ * Rate-limit key of an address: lower case, "+tag" removed, dots ignored for Gmail — so
+ * victim+1@… / v.ictim@gmail.com count as the same mailbox. Delivery uses the typed address.
+ */
+function rateLimitEmail(email: string) {
+  const at = email.lastIndexOf("@");
+  let local = email.slice(0, at).split("+")[0];
+  let domain = email.slice(at + 1);
+  if (domain === "googlemail.com") domain = "gmail.com";
+  if (domain === "gmail.com") local = local.replace(/\./g, "");
+  return `${local}@${domain}`;
+}
+
+const RATE_MESSAGES: Record<string, string> = {
+  rate_link: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  rate_daily: "오늘 이 링크로 받을 수 있는 서명 요청이 모두 접수되었습니다. 링크를 전달한 담당자에게 문의해 주세요.",
+  rate_email: "같은 이메일로 너무 많이 요청했습니다. 이미 시작한 서명은 이메일로 받은 링크에서 이어서 진행할 수 있습니다.",
+  rate_ip: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+};
 
 /**
  * 링크서명 시작 (public, no login): creates a document from the link's template owned by the
@@ -28,12 +47,13 @@ const EMAIL_RATE_PER_10_MIN = 3;
  * opens the signer flow.
  */
 export async function startLinkSign(token: string, _prev: LinkFormState, formData: FormData): Promise<LinkFormState> {
-  const name = String(formData.get("name") ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
+  const rawName = String(formData.get("name") ?? "").slice(0, 200);
+  // the name ends up in mail headers: no quotes / angle brackets / list separators
+  const name = cleanPersonName(rawName, 200);
   const email = String(formData.get("email") ?? "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .slice(0, 300);
   const agree = formData.get("agree") === "on";
   const values = { name, email };
   const fail = (error: string, field: LinkFormState["field"] = null): LinkFormState => ({ error, field, values });
@@ -51,25 +71,20 @@ export async function startLinkSign(token: string, _prev: LinkFormState, formDat
   const { link, template } = state;
   const admin = createAdminClient();
 
-  // abuse guard: a public link must not become a mail cannon
-  const now = Date.now();
-  const [{ count: perMinute }, { data: recent }] = await Promise.all([
-    admin
-      .from("documents")
-      .select("id", { count: "exact", head: true })
-      .eq("link_sign_id", link.id)
-      .gte("created_at", new Date(now - 60_000).toISOString()),
-    admin
-      .from("participants")
-      .select("id, documents!inner(link_sign_id, created_at)")
-      .eq("email", email)
-      .eq("documents.link_sign_id", link.id)
-      .gte("documents.created_at", new Date(now - 10 * 60_000).toISOString())
-      .limit(EMAIL_RATE_PER_10_MIN),
-  ]);
-  if ((perMinute ?? 0) >= LINK_RATE_PER_MINUTE || (recent ?? []).length >= EMAIL_RATE_PER_10_MIN) {
-    return fail("요청이 너무 많습니다. 잠시 후 다시 시도해 주세요. 이미 시작한 서명은 이메일로 받은 링크에서 이어서 진행할 수 있습니다.");
+  // abuse guard: a public link must not become a mail cannon. The attempt is reserved atomically
+  // (advisory lock per link): 10 per minute, 200 per day, 3 per mailbox / 10 per IP in 10 minutes.
+  // Failed attempts count too, so retries cannot get around the limits.
+  const ip = clientIp(await headers());
+  const { data: verdict, error: rateError } = await admin.rpc("link_sign_reserve", {
+    p_link_id: link.id,
+    p_email_norm: rateLimitEmail(email),
+    p_ip: ip,
+  });
+  if (rateError) {
+    console.error("[link] rate limit unavailable:", rateError.message);
+    return fail("서명할 문서를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.");
   }
+  if (verdict !== "ok") return fail(RATE_MESSAGES[String(verdict)] ?? RATE_MESSAGES.rate_link);
 
   const made = await instantiateTemplate({
     db: admin,
@@ -95,7 +110,11 @@ export async function startLinkSign(token: string, _prev: LinkFormState, formDat
   const { data: me } = await admin.from("participants").select("*").eq("id", made.participants[0].id).single();
   if (!me) return fail("서명 정보를 불러오지 못했습니다. 이메일로 받은 링크에서 서명을 진행해 주세요.");
   // same verification cookie as the /sign identity check → the e-mail check screen is skipped
-  await setVerifiedCookie(me as Participant);
+  try {
+    await setVerifiedCookie(me as Participant);
+  } catch (e) {
+    console.error("[link] identity cookie not issued:", (e as Error).message); // the signer page asks for the e-mail instead
+  }
 
   redirect(`/sign/${(me as Participant).access_token}`);
 }

@@ -181,7 +181,7 @@ export async function getTemplatePreview(wid: string, tid: string): Promise<Resu
   const t = data as Pick<TemplateRow, "id" | "title" | "file_path" | "page_sizes" | "roles" | "fields"> | null;
   if (!t) return { ok: false, error: "템플릿을 찾을 수 없습니다." };
   // the row was read with the member's RLS session → safe to sign its file
-  const url = await signedUrl(t.file_path, 60 * 60);
+  const url = await signedUrl(t.file_path ? paths.template(wid, t.id) : null, 60 * 60);
   if (!url) return { ok: false, error: "템플릿 문서를 불러오지 못했습니다." };
 
   const roles = Array.isArray(t.roles) ? t.roles : [];

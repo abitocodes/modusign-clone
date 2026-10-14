@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { buildPreviewPdf, finalizeDocument } from "@/lib/pdf/finalize";
-import { BUCKET } from "@/lib/storage";
+import { auditPath, buildPreviewPdf, FinalizeBusyError, finalizeDocument } from "@/lib/pdf/finalize";
+import { BUCKET, paths } from "@/lib/storage";
 
 import { isVerified, loadSignContext, safePdfName } from "@/app/sign/[token]/_lib/server";
 
@@ -22,6 +22,28 @@ const KINDS: Kind[] = ["original", "completed", "current", "audit"];
 
 const error = (message: string, status: number) =>
   NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
+
+/**
+ * Preview renders per document, shared by concurrent / repeated requests until the submitted values
+ * change (documents.last_activity_at) — one participant cannot start many renders in parallel.
+ */
+const PREVIEW_TTL_MS = 60_000;
+const previews = new Map<string, { version: string; at: number; bytes: Promise<Uint8Array> }>();
+
+function previewOnce(documentId: string, version: string) {
+  const hit = previews.get(documentId);
+  if (hit && hit.version === version && Date.now() - hit.at < PREVIEW_TTL_MS) return hit.bytes;
+  const bytes = buildPreviewPdf(documentId);
+  previews.set(documentId, { version, at: Date.now(), bytes });
+  bytes.catch(() => {
+    if (previews.get(documentId)?.bytes === bytes) previews.delete(documentId);
+  });
+  if (previews.size > 100) {
+    const now = Date.now();
+    for (const [id, p] of previews) if (now - p.at >= PREVIEW_TTL_MS) previews.delete(id);
+  }
+  return bytes;
+}
 
 function pdfResponse(bytes: Uint8Array, fileName: string) {
   return new NextResponse(Buffer.from(bytes), {
@@ -51,30 +73,38 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/sign/[to
 
   if (kind === "current") {
     try {
-      return pdfResponse(await buildPreviewPdf(doc.id), safePdfName(doc.title));
+      return pdfResponse(await previewOnce(doc.id, doc.last_activity_at), safePdfName(doc.title));
     } catch (e) {
       console.error("[sign download] preview failed:", (e as Error).message);
       return error("문서를 준비하지 못했습니다.", 502);
     }
   }
 
+  // storage paths are rebuilt from the ids; the stored columns only say whether a file exists
   let path: string | null = null;
   let fileName = safePdfName(doc.title);
   if (kind === "original") {
-    path = doc.file_path;
+    path = doc.file_path ? paths.documentOriginal(doc.workspace_id, doc.id) : null;
   } else {
     if (doc.status !== "completed") return error("아직 서명이 완료되지 않은 문서입니다.", 409);
-    path = kind === "audit" ? (doc.audit_file_path ?? null) : doc.completed_file_path;
     if (kind === "audit") fileName = "감사 추적 인증서.pdf";
-    if (!path) {
-      // the generation failed when the last signer signed — build it now
+    if (!doc.completed_file_path) {
+      // the generation failed (or is still running) since the last signer signed — build it now
       try {
         const result = await finalizeDocument(doc.id);
         return pdfResponse(kind === "audit" ? result.auditBytes : result.completedBytes, fileName);
       } catch (e) {
+        if (e instanceof FinalizeBusyError) return error(e.message, e.failed ? 502 : 409);
         console.error("[sign download] finalize failed:", (e as Error).message);
         return error("완료 문서를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.", 502);
       }
+    }
+    if (kind === "audit") {
+      // never re-render a completed PDF whose file and hash were already handed out
+      if (!doc.audit_file_path) return error("감사 추적 인증서가 없습니다.", 404);
+      path = auditPath(doc.workspace_id, doc.id);
+    } else {
+      path = paths.documentCompleted(doc.workspace_id, doc.id);
     }
   }
   if (!path) return error("문서 파일이 없습니다.", 404);

@@ -12,6 +12,15 @@ import type { ActionResult, CreateDraftInput } from "../_lib/types";
 
 const MAX_PAGES = 500;
 
+/** "%PDF-" within the first KiB (the PDF spec allows leading bytes before the header) */
+function isPdfHeader(bytes: Uint8Array) {
+  const marker = [0x25, 0x50, 0x44, 0x46, 0x2d];
+  for (let i = 0; i + marker.length <= bytes.length; i++) {
+    if (marker.every((b, j) => bytes[i + j] === b)) return true;
+  }
+  return false;
+}
+
 function validPageSize(s: unknown): s is { w: number; h: number } {
   if (!s || typeof s !== "object") return false;
   const { w, h } = s as { w: unknown; h: unknown };
@@ -60,7 +69,21 @@ export async function attachUploadedFile(docId: string): Promise<ActionResult> {
   const path = paths.documentOriginal(doc.workspace_id, doc.id);
   const folder = path.slice(0, path.lastIndexOf("/"));
   const { data: objects } = await supabase.storage.from(BUCKET).list(folder, { search: "original.pdf" });
-  if (!objects?.some((o) => o.name === "original.pdf")) return { ok: false, error: "업로드한 파일을 찾을 수 없습니다. 다시 시도해 주세요." };
+  const object = objects?.find((o) => o.name === "original.pdf");
+  if (!object) return { ok: false, error: "업로드한 파일을 찾을 수 없습니다. 다시 시도해 주세요." };
+  // the bucket limit is sized for generated PDFs: enforce the 10 MB upload limit from the stored object
+  const size = Number((object.metadata as { size?: number } | null)?.size ?? 0);
+  if (!Number.isFinite(size) || size > MAX_PDF_BYTES) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    return { ok: false, error: "문서는 최대 10MB까지 업로드할 수 있습니다." };
+  }
+  // the browser chooses the Content-Type: check that the object really is a PDF
+  const { data: blob } = await supabase.storage.from(BUCKET).download(path);
+  const head = blob ? new Uint8Array(await blob.slice(0, 1024).arrayBuffer()) : null;
+  if (!head || !isPdfHeader(head)) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    return { ok: false, error: "PDF 파일이 아닙니다. 다시 업로드해 주세요." };
+  }
 
   const { error } = await supabase
     .from("documents")

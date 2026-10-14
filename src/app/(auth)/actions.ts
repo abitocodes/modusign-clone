@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { safeNextPath } from "@/lib/safe-next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,7 +21,8 @@ async function resolveLoginEmail(login: string) {
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const login = String(formData.get("login") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/");
+  // only same-site paths: a backslash or TAB after the "/" would resolve to another origin
+  const next = safeNextPath(formData.get("next"));
   if (!login || !password) return { error: "아이디와 비밀번호를 입력해 주세요." };
 
   const email = await resolveLoginEmail(login);
@@ -30,5 +32,5 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: "아이디 또는 비밀번호가 올바르지 않습니다." };
 
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  redirect(next);
 }

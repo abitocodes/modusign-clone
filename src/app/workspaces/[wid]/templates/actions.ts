@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { BUCKET, paths } from "@/lib/storage";
+import { BUCKET, MAX_PDF_BYTES, paths } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { cleanTemplatePayload, isUuid, type Result, type TemplatePayload } from "@/lib/templates/model";
 import { canManageTemplate, memberRole } from "@/lib/templates/server";
@@ -34,10 +34,16 @@ async function existingLabels(supabase: Supabase, wid: string, ids: string[]) {
   return ids.filter((id) => ok.has(id));
 }
 
-/** Does the template PDF exist in storage? (uploaded by the browser with the member's session) */
+/**
+ * Does the template PDF exist in storage (uploaded by the browser with the member's session) and
+ * stay within the 10 MB upload limit? (the bucket limit is sized for generated PDFs)
+ */
 async function fileExists(supabase: Supabase, wid: string, tid: string) {
   const { data } = await supabase.storage.from(BUCKET).list(`${wid}/templates`, { search: `${tid}.pdf`, limit: 10 });
-  return !!data?.some((o) => o.name === `${tid}.pdf`);
+  const object = data?.find((o) => o.name === `${tid}.pdf`);
+  if (!object) return false;
+  const size = Number((object.metadata as { size?: number } | null)?.size ?? 0);
+  return Number.isFinite(size) && size <= MAX_PDF_BYTES;
 }
 
 function revalidateTemplates(wid: string) {
@@ -90,7 +96,7 @@ export async function attachTemplateFile(wid: string, tid: string): Promise<Resu
   const { data } = await auth.supabase.from("templates").select("id, owner_id, file_path").eq("id", tid).eq("workspace_id", wid).maybeSingle();
   const t = data as Pick<TemplateRow, "id" | "owner_id" | "file_path"> | null;
   if (!t || t.owner_id !== auth.userId) return { ok: false, error: "템플릿을 찾을 수 없습니다." };
-  if (!(await fileExists(auth.supabase, wid, tid))) return { ok: false, error: "업로드한 문서를 찾을 수 없습니다. 다시 시도해 주세요." };
+  if (!(await fileExists(auth.supabase, wid, tid))) return { ok: false, error: "업로드한 문서를 찾을 수 없거나 10MB를 넘습니다. 다시 시도해 주세요." };
 
   const { error } = await auth.supabase
     .from("templates")
@@ -139,7 +145,7 @@ export async function updateTemplate(
 
   const replaced = opts?.fileReplaced === true;
   if (replaced && !(await fileExists(auth.supabase, wid, tid))) {
-    return { ok: false, error: "업로드한 문서를 찾을 수 없습니다. 다시 시도해 주세요." };
+    return { ok: false, error: "업로드한 문서를 찾을 수 없거나 10MB를 넘습니다. 다시 시도해 주세요." };
   }
   if (!replaced && !t.file_path) return { ok: false, error: "템플릿 문서 파일이 없습니다. 문서를 다시 업로드해 주세요." };
 

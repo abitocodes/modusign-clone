@@ -107,6 +107,10 @@ export interface DocumentRow {
   completed_hash?: string | null;
   /** added by migration 20261014018000_signer: storage path of the separate 감사 추적 인증서 PDF */
   audit_file_path?: string | null;
+  /** added by migration 20261014030000_security_hardening: claim / last attempt of the completed-PDF generation */
+  finalizing_at?: string | null;
+  /** added by migration 20261014030000_security_hardening: last generation error (null = none) */
+  finalize_error?: string | null;
 }
 
 export interface Participant {

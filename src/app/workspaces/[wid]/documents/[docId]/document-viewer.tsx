@@ -2,7 +2,8 @@
 
 import { ArrowLeft, CircleAlert, CircleMinus, CirclePlus, Download, FileDown, FileX, LoaderCircle, PenLine } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { FieldValue } from "@/components/fields/field-value";
 import { PdfPageView, PdfThumbnail, usePdfDocument } from "@/components/pdf/pdf";
@@ -18,6 +19,7 @@ import { FIELD_META } from "@/lib/fields";
 import type { DocStatus, FieldRow, PageSize, RequestType, SigningOrder } from "@/lib/types";
 import { cn, documentBadge, participantColor, withAlpha } from "@/lib/utils";
 
+import { startInPersonSigning } from "../../esign/documents/actions";
 import { LocalTime } from "../../esign/documents/_components/local-time";
 import { ParticipantPill } from "../../esign/documents/_components/participant-line";
 import { EventList } from "../../esign/documents/_components/progress-modal";
@@ -53,6 +55,7 @@ export function DocumentViewer({
   pdfUrl,
   myEmail,
   myToken,
+  inPersonPending = [],
 }: {
   wid: string;
   doc: ViewerDoc;
@@ -61,8 +64,11 @@ export function DocumentViewer({
   pdfUrl: string | null;
   myEmail: string;
   myToken: string | null;
+  /** pending 직접 대면 signers (managers only) */
+  inPersonPending?: { id: string; name: string }[];
 }) {
   const { doc: pdf, pageSizes, loading, error } = usePdfDocument(pdfUrl);
+  const [inPersonBusy, startInPerson] = useTransition();
   const [zoomIndex, setZoomIndex] = useState(ZOOMS.indexOf(1));
   const [active, setActive] = useState(1);
   const scrollRef = useRef<HTMLElement>(null);
@@ -151,6 +157,24 @@ export function DocumentViewer({
               {view ? "열람하기" : "서명하기"}
             </Link>
           )}
+          {inPersonPending.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={inPersonBusy}
+              title={`${p.name}님이 이 기기에서 ${view ? "열람" : "서명"}합니다.`}
+              onClick={() =>
+                startInPerson(async () => {
+                  const res = await startInPersonSigning(wid, doc.id, p.id);
+                  if (res && !res.ok) toast.error(res.error);
+                })
+              }
+              className={cn(linkBtn, "bg-primary text-primary-fg shadow-button hover:bg-primary-hover disabled:opacity-60")}
+            >
+              <PenLine className="size-4" />
+              직접 대면 {view ? "열람" : "서명"} 시작 ({p.name})
+            </button>
+          ))}
           {doc.hasOriginal && (
             <a href={downloadHref(doc.id, "original")} className={cn(linkBtn, "bg-btn-light text-fg-2 shadow-button hover:bg-btn-base")}>
               <Download className="size-4" />

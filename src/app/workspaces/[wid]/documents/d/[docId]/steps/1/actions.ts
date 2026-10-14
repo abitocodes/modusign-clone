@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { cleanPersonName } from "@/lib/email/address";
 import { BUCKET, paths } from "@/lib/storage";
 import type { DeliveryMethod, FieldRow, Participant, TemplateField, TemplateRole } from "@/lib/types";
 
 import { authorizeDocument, isUuid, wizardPaths } from "../../../_lib/access";
 import {
+  AUTH_PASSWORD_MAX,
+  AUTH_PASSWORD_MIN,
   EMAIL_RE,
   LOCALES,
   MAX_PARTICIPANTS,
@@ -31,7 +34,10 @@ interface CleanParticipant {
 
 function clean(p: ParticipantInput): CleanParticipant | string {
   if (!p || typeof p !== "object" || !isUuid(p.id)) return "잘못된 참여자 정보입니다.";
-  const name = String(p.name ?? "").trim();
+  const rawName = String(p.name ?? "");
+  if (rawName.length > 200) return "이름은 50자 이내로 입력해 주세요.";
+  // names go into mail headers: no quotes / angle brackets / list separators
+  const name = cleanPersonName(rawName, 200);
   if (name.length > 50) return "이름은 50자 이내로 입력해 주세요.";
   const delivery = p.delivery ?? null;
   if (delivery !== null && !DELIVERIES.includes(delivery)) return "잘못된 전송 수단입니다.";
@@ -40,7 +46,8 @@ function clean(p: ParticipantInput): CleanParticipant | string {
   if (email.length > 254) return "이메일 주소가 너무 깁니다.";
   const locale = LOCALE_VALUES.includes(p.locale) ? p.locale : "ko";
   const pw = p.authPassword == null ? null : String(p.authPassword);
-  if (pw !== null && (pw.length < 4 || pw.length > 20)) return "인증 비밀번호는 4~20자로 입력해 주세요.";
+  if (pw !== null && (pw.length < AUTH_PASSWORD_MIN || pw.length > AUTH_PASSWORD_MAX))
+    return `인증 비밀번호는 ${AUTH_PASSWORD_MIN}~${AUTH_PASSWORD_MAX}자로 입력해 주세요.`;
   const message = p.message == null ? null : String(p.message).trim().slice(0, 500) || null;
   return {
     id: p.id,
@@ -129,7 +136,8 @@ export async function saveParticipants(docId: string, input: SaveParticipantsInp
       request_attachment: p.request_attachment,
     };
     if (existing.has(p.id)) updates.push(supabase.from("participants").update(row).eq("id", p.id).eq("document_id", doc.id));
-    else toInsert.push({ id: p.id, document_id: doc.id, status: "waiting", ...row });
+    // status ('waiting') and access_token come from the column defaults
+    else toInsert.push({ id: p.id, document_id: doc.id, ...row });
   });
 
   const results = await Promise.all(updates);

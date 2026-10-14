@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { EditorCustomField, EditorField, EditorParticipant } from "@/components/editor/editor-model";
 import { getWorkspaceContext } from "@/lib/data/session";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentRow, FieldRow, PageSize, Participant } from "@/lib/types";
@@ -49,7 +50,7 @@ export default async function FieldPlacementStep({ params }: PageProps<"/workspa
       .eq("workspace_id", wid)
       .order("created_at"),
     // long-lived: pdf.js may fetch byte ranges lazily while the editor stays open
-    signedUrl(doc.file_path, 60 * 60 * 12),
+    signedUrl(paths.documentOriginal(doc.workspace_id, doc.id), 60 * 60 * 12),
   ]);
 
   const parts = (partData ?? []) as Pick<Participant, "id" | "name" | "role" | "order_index">[];

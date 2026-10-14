@@ -46,6 +46,8 @@ export interface DocListItem {
   participants: PublicParticipant[];
   /** my own access token when it is my turn (pending) — used for the 서명하기 / 거절 links */
   myToken: string | null;
+  /** pending 직접 대면 signers (managers of an in-progress document only) — 직접 대면 서명 시작 */
+  inPersonPending: { id: string; name: string }[];
   /** requester (owner) or workspace admin */
   canManage: boolean;
   isOwner: boolean;
@@ -166,9 +168,13 @@ export function participantStatusLabel(status: DisplayParticipantStatus, request
   }
 }
 
-/** Has anybody already completed (signed / viewed / rejected) their part? */
+/**
+ * Has anybody already completed (signed / viewed / rejected) their part?
+ * Status "viewed" only occurs for finished viewers of a view request (sign requests keep "pending"
+ * while viewed_at is set), so merely opening a sign request does not count.
+ */
 export function anyoneActed(participants: Pick<PublicParticipant, "status" | "signed_at">[]) {
-  return participants.some((p) => p.status === "signed" || p.status === "rejected" || !!p.signed_at);
+  return participants.some((p) => p.status === "signed" || p.status === "viewed" || p.status === "rejected" || !!p.signed_at);
 }
 
 /** Headline of the row panel, e.g. "두 번째 서명자의 서명을 기다리고 있습니다." */
@@ -215,6 +221,9 @@ export const documentsHome = (wid: string) => `/workspaces/${wid}/esign/document
 export const viewerHref = (wid: string, docId: string) => `/workspaces/${wid}/documents/${docId}`;
 export const wizardHref = (wid: string, docId: string) => `/workspaces/${wid}/documents/d/${docId}/steps/1`;
 export const downloadHref = (docId: string, type: "original" | "completed") => `/api/documents/${docId}/download?type=${type}`;
+
+/** Statuses from which the requester may cancel the request (수정 중 included: its signers were notified). */
+export const CANCELLABLE_STATUSES: DocStatus[] = ["in_progress", "scheduled", "on_modifying"];
 
 /* ---------------------------------------------------------- date ranges */
 

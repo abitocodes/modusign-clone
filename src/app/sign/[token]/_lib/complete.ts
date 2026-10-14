@@ -2,21 +2,20 @@ import "server-only";
 
 import { after } from "next/server";
 
+import { isValidEmail } from "@/lib/email/address";
 import { appUrl, sendMail } from "@/lib/email/mailer";
-import { completedEmail, signRequestEmail } from "@/lib/email/templates";
+import { completedEmail, emailLayout, signRequestEmail } from "@/lib/email/templates";
 import { logEvent, type EventType } from "@/lib/events";
 import { finalizeDocument, type FinalizeResult } from "@/lib/pdf/finalize";
 import type { DocumentCc, Participant } from "@/lib/types";
 
-import { expiresAtFrom, isDone, safePdfName, type SignContext } from "./server";
+import { expiresAtFrom, isDone, resetIdentityAttempts, safePdfName, type SignContext } from "./server";
 
 /**
  * What happens after a participant finished their part (signed / viewed):
  *  - every participant done → document `completed` (+ completed event, final PDF, completion mails)
  *  - sequential order → the next `waiting` participant becomes `pending` and gets the request mail
  */
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function safeLog(
   documentId: string,
@@ -37,6 +36,10 @@ function signerList(parts: Participant[]) {
 
 async function sendToNext(ctx: SignContext, next: Participant, parts: Participant[]) {
   const { admin, doc, owner } = ctx;
+  // the requester may have cancelled / reopened the request meanwhile
+  const { data: current } = await admin.from("documents").select("status").eq("id", doc.id).maybeSingle();
+  if ((current as { status: string } | null)?.status !== "in_progress") return;
+
   const now = new Date();
   const expiresAt = expiresAtFrom(doc.expires_days, now);
   const { data: claimed } = await admin
@@ -46,8 +49,29 @@ async function sendToNext(ctx: SignContext, next: Participant, parts: Participan
     .eq("status", "waiting")
     .select("id");
   if (!claimed?.length) return; // another request already moved the turn on
+  await resetIdentityAttempts(admin, [next.id]);
 
   await safeLog(doc.id, "sent", { name: next.name, email: next.email }, { auto: true, meta: { participant_id: next.id, delivery: next.delivery } });
+  if (next.delivery === "in_person") {
+    // nobody gets a link: tell the requester to start the 직접 대면 signing (workspace link, no token)
+    if (owner?.email) {
+      const verb = doc.request_type === "view" ? "열람" : "서명";
+      await sendMail({
+        to: owner.email,
+        toName: owner.name,
+        subject: `[직접 대면] '${doc.title}' 문서의 직접 대면 ${verb} 차례입니다.`,
+        html: emailLayout({
+          heading: `직접 대면 ${verb} 차례입니다.`,
+          lead: [`${next.name || "서명자"}님의 차례입니다.`, `문서를 열고 '직접 대면 ${verb} 시작'을 눌러 ${verb}자에게 기기를 건네주세요.`],
+          rows: [{ label: "문서 제목", value: [doc.title] }],
+          cta: { label: "문서 열기", href: appUrl(`/workspaces/${doc.workspace_id}/documents/${doc.id}`) },
+        }),
+        kind: "other",
+        documentId: doc.id,
+      });
+    }
+    return;
+  }
   if (next.delivery !== "email" || !next.email) return;
   const mail = signRequestEmail({
     title: doc.title,
@@ -76,7 +100,7 @@ async function sendCompletionMails(ctx: SignContext, parts: Participant[], compl
 
   const send = async (to: string | null | undefined, name: string | null, link: string) => {
     const email = (to ?? "").trim();
-    if (!EMAIL_RE.test(email) || sent.has(email.toLowerCase())) return;
+    if (!isValidEmail(email) || sent.has(email.toLowerCase())) return;
     sent.add(email.toLowerCase());
     const mail = completedEmail({
       title: doc.title,
@@ -113,9 +137,12 @@ async function completeDocument(ctx: SignContext, parts: Participant[]) {
 
   let result: FinalizeResult | null = null;
   try {
+    // write-once: when a concurrent download generated the files first, this returns those files
+    // (and their hash), so the mails always carry exactly what is stored
     result = await finalizeDocument(doc.id);
   } catch (e) {
-    // the download route retries the generation on demand
+    // both download routes (/api/sign/[token]/download and /api/documents/[docId]/download)
+    // generate the files again on demand
     console.error(`[sign] completed PDF of ${doc.id} could not be generated:`, (e as Error).message);
   }
   // mails carry two PDF attachments each — send them after the response so the signer is not kept waiting
@@ -131,9 +158,10 @@ export async function afterParticipantDone(ctx: SignContext): Promise<{ complete
   await admin.from("documents").update({ last_activity_at: new Date().toISOString() }).eq("id", doc.id).eq("status", "in_progress");
 
   if (parts.length > 0 && parts.every((p) => isDone(p, doc.request_type))) {
-    // false when a concurrent request completed it first — the document is completed either way
-    await completeDocument(ctx, parts);
-    return { completed: true };
+    if (await completeDocument(ctx, parts)) return { completed: true };
+    // not claimed: completed by a concurrent request — or cancelled meanwhile
+    const { data: current } = await admin.from("documents").select("status").eq("id", doc.id).maybeSingle();
+    return { completed: (current as { status: string } | null)?.status === "completed" };
   }
 
   if (doc.signing_order === "sequential" && !parts.some((p) => p.status === "pending")) {

@@ -2,6 +2,7 @@
  * Field value rules of the signer flow — shared by the browser (inline errors, progress counter)
  * and the server actions (authoritative validation before anything is stored).
  */
+import { isValidEmail } from "@/lib/email/address";
 import { FIELD_META } from "@/lib/fields";
 import type { FieldOptions, FieldType } from "@/lib/types";
 
@@ -16,8 +17,29 @@ export const MAX_IMAGE_DATA_URL = 2_900_000;
 export const MAX_TEXT_LENGTH = 500;
 export const MAX_TRANSCRIBE_LENGTH = 1000;
 export const MAX_REJECT_REASON = 500;
+/** dropdown items are capped at 100 characters by the editor (sanitizeFieldOptions) */
+export const MAX_DROPDOWN_LENGTH = 100;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** Longest value a field of this type may carry (임시저장 and 서명). */
+export function maxValueLength(type: FieldType) {
+  switch (type) {
+    case "signature":
+    case "image":
+      return MAX_IMAGE_DATA_URL;
+    case "transcribe":
+      return MAX_TRANSCRIBE_LENGTH;
+    case "dropdown":
+      return MAX_DROPDOWN_LENGTH;
+    case "date":
+    case "signed_date":
+      return 10;
+    case "checkbox":
+      return 5;
+    default:
+      return MAX_TEXT_LENGTH;
+  }
+}
+
 const PHONE_RE = /^\+?[\d\s-]{8,16}$/;
 const NUMBER_RE = /^-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -96,8 +118,9 @@ export function fieldError(f: ValidatableField, value: string | undefined | null
     case "signed_date":
       return null;
     case "dropdown": {
+      // fail closed: a dropdown without items accepts nothing
       const items = (f.options.items ?? []).filter(Boolean);
-      return items.length === 0 || items.includes(v) ? null : "목록에 있는 항목을 선택해 주세요.";
+      return v.length <= MAX_DROPDOWN_LENGTH && items.includes(v) ? null : "목록에 있는 항목을 선택해 주세요.";
     }
     case "transcribe": {
       if (v.length > MAX_TRANSCRIBE_LENGTH) return `${MAX_TRANSCRIBE_LENGTH}자 이내로 입력해 주세요.`;
@@ -112,7 +135,7 @@ export function fieldError(f: ValidatableField, value: string | undefined | null
         case "number":
           return NUMBER_RE.test(t) ? null : "숫자만 입력해 주세요.";
         case "email":
-          return EMAIL_RE.test(t) ? null : "이메일 형식이 올바르지 않습니다.";
+          return isValidEmail(t) ? null : "이메일 형식이 올바르지 않습니다.";
         case "phone":
           return PHONE_RE.test(t) && t.replace(/\D/g, "").length >= 8 ? null : "전화번호 형식이 올바르지 않습니다.";
         default:

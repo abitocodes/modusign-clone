@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 
 import type { EditorCustomField } from "@/components/editor/editor-model";
 import { getWorkspaceContext } from "@/lib/data/session";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, toEditorFields } from "@/lib/templates/model";
@@ -34,7 +35,7 @@ export default async function EditTemplatePage({ params }: PageProps<"/workspace
       .eq("workspace_id", wid)
       .order("created_at"),
     // long-lived: pdf.js may fetch byte ranges lazily while the editor stays open
-    signedUrl(t.file_path, 60 * 60 * 12),
+    signedUrl(t.file_path ? paths.template(t.workspace_id, t.id) : null, 60 * 60 * 12),
   ]);
 
   const roles = (Array.isArray(t.roles) ? t.roles : []).map((r) => ({ key: r.key, name: r.name }));

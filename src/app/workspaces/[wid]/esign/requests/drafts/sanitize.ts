@@ -35,7 +35,11 @@ const DROP_WITH_CONTENT = new Set([
 
 export const MAX_DRAFT_HTML = 500_000;
 
-const TOKEN_RE = /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<![^>]*>|<\?[^>]*>|<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+// Linear-time tokenizer: no class may contain "<" (a run of "<" without ">" would otherwise be
+// rescanned from every start position), and the lookahead keeps the tag name from handing
+// characters over to the attribute part.
+const TOKEN_RE =
+  /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<![^<>]*>|<\?[^<>]*>|<(\/?)([a-zA-Z][a-zA-Z0-9-]*)(?![a-zA-Z0-9-])((?:[^<>"']|"[^"]*"|'[^']*')*)>/g;
 const ENTITY_RE = /&(#\d{1,7}|#x[0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});/y;
 
 function escapeText(s: string) {

@@ -17,6 +17,7 @@ import {
   LogOut,
   Mail,
   Pencil,
+  PenLine,
   Plus,
   Send,
   Tag,
@@ -25,7 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { StatusBadge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ import { Cell, TableRow } from "@/components/ui/list-page";
 import { Dropdown, MenuDivider, MenuItem } from "@/components/ui/menu";
 import {
   anyoneActed,
+  CANCELLABLE_STATUSES,
   downloadHref,
   isMe,
   sortParticipants,
@@ -45,6 +47,7 @@ import {
 import type { Label } from "@/lib/types";
 import { cn, documentBadge } from "@/lib/utils";
 
+import { startInPersonSigning } from "../actions";
 import { LocalTime } from "../_components/local-time";
 import { ParticipantLine } from "../_components/participant-line";
 
@@ -55,7 +58,10 @@ export type RowCommand = "progress" | "cancel" | "labels" | "delete" | "modify" 
 const soon = (what: string) => toast(`${what} 기능은 준비 중입니다.`);
 /** approximate height of the kebab menu (≈ 12 items + dividers) */
 const MENU_HEIGHT = 440;
+/** 내용 수정 is offered for sent / scheduled requests */
 const cancellable = (d: DocListItem) => d.status === "in_progress" || d.status === "scheduled";
+/** 서명 요청 취소 also for a request that is being modified (its signers were notified) */
+const canCancel = (d: DocListItem) => CANCELLABLE_STATUSES.includes(d.status);
 const inWizard = (d: DocListItem) => d.status === "draft" || d.status === "on_modifying";
 
 export function DocumentRow({
@@ -270,6 +276,7 @@ function RowPanel({
   const view = doc.request_type === "view";
   const sorted = sortParticipants(doc.participants);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [inPersonBusy, startInPerson] = useTransition();
 
   // The panel overlays the rows below it; report how far it reaches so the table body can grow
   // when it is opened on one of the last rows (keeps the surface + pagination below it).
@@ -334,12 +341,27 @@ function RowPanel({
             내용 확인
           </PanelRow>
         )}
+        {doc.inPersonPending.map((p) => (
+          <PanelRow
+            key={p.id}
+            icon={<PenLine />}
+            chevron
+            onClick={() =>
+              startInPerson(async () => {
+                const res = await startInPersonSigning(wid, doc.id, p.id);
+                if (res && !res.ok) toast.error(res.error);
+              })
+            }
+          >
+            {inPersonBusy ? `${view ? "열람" : "서명"} 화면을 여는 중…` : `직접 대면 ${view ? "열람" : "서명"} 시작 (${p.name})`}
+          </PanelRow>
+        ))}
         {doc.canManage && cancellable(doc) && !anyoneActed(doc.participants) && (
           <PanelRow icon={<Pencil />} onClick={() => onCommand("modify")} chevron>
             내용 수정
           </PanelRow>
         )}
-        {doc.canManage && cancellable(doc) && (
+        {doc.canManage && canCancel(doc) && (
           <PanelRow icon={<CircleX />} danger onClick={() => onCommand("cancel")}>
             서명 요청 취소
           </PanelRow>
@@ -460,7 +482,7 @@ function RowMenu({ wid, doc, busy, onCommand }: { wid: string; doc: DocListItem;
             <MenuItem icon={<LogOut />} onClick={run(() => soon("문서 이전"))}>
               이전
             </MenuItem>
-            {doc.canManage && cancellable(doc) && (
+            {doc.canManage && canCancel(doc) && (
               <MenuItem icon={<CircleX />} danger onClick={run(() => onCommand("cancel"))}>
                 서명 요청 취소
               </MenuItem>

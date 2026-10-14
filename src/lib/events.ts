@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isIP } from "node:net";
+
 import { headers } from "next/headers";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,13 +15,42 @@ export type EventType =
   | "completed"
   | "cancelled"
   | "reminded"
-  | "modified";
+  | "modified"
+  | "expired"
+  | "identity_locked";
+
+const MAX_USER_AGENT = 512;
+
+/**
+ * Client IP of the current request, taken from a hop this deployment trusts — never from the
+ * client-controlled left end of X-Forwarded-For:
+ *  - TRUSTED_IP_HEADER (e.g. "x-real-ip" set by nginx `proxy_set_header X-Real-IP $remote_addr`,
+ *    or "x-vercel-forwarded-for"): a header the front proxy overwrites;
+ *  - otherwise the entry TRUSTED_PROXY_HOPS (default 1) from the right of X-Forwarded-For, i.e.
+ *    the address the closest trusted proxy appended.
+ * Returns null when no valid IP address is available.
+ */
+export function clientIp(h: Pick<Headers, "get">): string | null {
+  const header = process.env.TRUSTED_IP_HEADER?.trim().toLowerCase();
+  let candidate: string | undefined;
+  if (header) {
+    candidate = h.get(header)?.split(",")[0];
+  } else {
+    const hops = Math.max(1, Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "1", 10) || 1);
+    const parts = (h.get("x-forwarded-for") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    candidate = parts[parts.length - hops];
+  }
+  const ip = candidate?.trim().replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "") ?? "";
+  return ip && isIP(ip) ? ip : null;
+}
 
 /** Client IP + user agent of the current request (best effort). */
 export async function requestMeta() {
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim() || "127.0.0.1";
-  return { ip, userAgent: h.get("user-agent") ?? "" };
+  return { ip: clientIp(h), userAgent: (h.get("user-agent") ?? "").slice(0, MAX_USER_AGENT) };
 }
 
 /**
@@ -68,6 +99,10 @@ export function describeEvent(e: { type: string; actor_name: string | null; acto
       return `${who} 님에게 서명 알림을 다시 보냈습니다.`;
     case "modified":
       return `${who} 님이 문서 내용을 수정하였습니다.`;
+    case "expired":
+      return "서명 기한이 만료되어 서명이 취소되었습니다.";
+    case "identity_locked":
+      return `${who} 님의 본인 확인이 여러 번 실패하여 서명이 잠겼습니다.`;
     default:
       return `${who} ${e.type}`;
   }

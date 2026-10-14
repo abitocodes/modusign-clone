@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Contact, Participant, Profile } from "@/lib/types";
 
 import { loadEditableDocument } from "../../../_lib/access";
@@ -14,21 +15,30 @@ export default async function ParticipantsStepPage({ params }: PageProps<"/works
   const { supabase, doc } = await loadEditableDocument(wid, docId);
   if (!doc.file_path) redirect(`/workspaces/${wid}/documents/d/upload`);
 
-  const [{ data: parts }, { data: fieldRows }, { data: contacts }, { data: members }] = await Promise.all([
-    supabase.from("participants").select("*").eq("document_id", docId).order("order_index"),
+  const [{ data: parts }, { data: secrets }, { data: fieldRows }, { data: contacts }, { data: members }] = await Promise.all([
+    supabase
+      .from("participants")
+      .select("id, name, email, phone, delivery, locale, message, request_attachment, role_label, order_index")
+      .eq("document_id", docId)
+      .order("order_index"),
+    // 인증 비밀번호 is not readable through the API: loadEditableDocument authorised the requester /
+    // an admin for this editable document, so the service role may hand it to this form
+    createAdminClient().from("participants").select("id, auth_password").eq("document_id", docId),
     supabase.from("fields").select("participant_id").eq("document_id", docId),
     supabase.from("contacts").select("id, name, email, phone, company, position").eq("workspace_id", wid).order("name").limit(500),
     supabase.from("workspace_members").select("user_id, profiles(id, name, email, department, position)").eq("workspace_id", wid),
   ]);
+  const passwords = new Map(((secrets ?? []) as Pick<Participant, "id" | "auth_password">[]).map((s) => [s.id, s.auth_password]));
 
-  const participants: ParticipantInput[] = ((parts ?? []) as Participant[]).map((p) => ({
+  type Row = Pick<Participant, "id" | "name" | "email" | "phone" | "delivery" | "locale" | "message" | "request_attachment" | "role_label">;
+  const participants: ParticipantInput[] = ((parts ?? []) as Row[]).map((p) => ({
     id: p.id,
     name: p.name,
     email: p.email ?? "",
     phone: p.phone ?? "",
     delivery: p.delivery,
     locale: (["ko", "en", "ja", "zh"].includes(p.locale) ? p.locale : "ko") as Locale,
-    authPassword: p.auth_password,
+    authPassword: passwords.get(p.id) ?? null,
     message: p.message,
     requestAttachment: p.request_attachment,
     roleLabel: p.role_label ?? null,

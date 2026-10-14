@@ -2,7 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getWorkspaceContext } from "@/lib/data/session";
-import { isUuid, loadProgressInfo, myPendingToken, PARTICIPANT_COLUMNS, type RawParticipant } from "@/lib/documents/server";
+import {
+  canManage,
+  expireOverdueSafe,
+  inPersonPending,
+  isUuid,
+  loadMyPendingTokens,
+  loadProgressInfo,
+  PARTICIPANT_COLUMNS,
+  type RawParticipant,
+} from "@/lib/documents/server";
+import { paths } from "@/lib/storage";
 import { signedUrl } from "@/lib/storage-server";
 import { createClient } from "@/lib/supabase/server";
 import type { DocStatus, FieldRow, PageSize, RequestType, SigningOrder } from "@/lib/types";
@@ -30,7 +40,8 @@ interface ViewerDocRow {
 export default async function DocumentViewerPage({ params }: PageProps<"/workspaces/[wid]/documents/[docId]">) {
   const { wid, docId } = await params;
   if (!isUuid(docId)) notFound();
-  const { profile } = await getWorkspaceContext(wid);
+  const { profile, role } = await getWorkspaceContext(wid);
+  await expireOverdueSafe(wid);
   const supabase = await createClient();
 
   // RLS: only rows the current user may see come back.
@@ -49,7 +60,12 @@ export default async function DocumentViewerPage({ params }: PageProps<"/workspa
 
   const myEmail = profile.email.toLowerCase();
   const participants = doc.participants ?? [];
-  const [info, pdfUrl] = await Promise.all([loadProgressInfo(supabase, wid, docId, profile.id), signedUrl(doc.file_path, 60 * 60)]);
+  const [info, pdfUrl, myTokens] = await Promise.all([
+    loadProgressInfo(supabase, wid, docId, profile.id),
+    // signed with the service role: the path is rebuilt from the ids, never taken from the row
+    doc.file_path ? signedUrl(paths.documentOriginal(wid, doc.id), 60 * 60) : null,
+    loadMyPendingTokens(supabase, doc.status === "in_progress" ? [doc.id] : []),
+  ]);
   if (!info) notFound();
 
   const fields: ViewerField[] = (doc.fields ?? []).map((f) => ({
@@ -77,14 +93,16 @@ export default async function DocumentViewerPage({ params }: PageProps<"/workspa
         request_type: doc.request_type,
         signing_order: doc.signing_order,
         hasOriginal: !!doc.file_path,
-        hasCompleted: !!doc.completed_file_path,
+        // the download route generates a missing completed PDF on demand
+        hasCompleted: doc.status === "completed" || !!doc.completed_file_path,
         pageSizes: doc.page_sizes ?? [],
       }}
       info={info}
       fields={fields}
       pdfUrl={pdfUrl}
       myEmail={myEmail}
-      myToken={doc.status === "in_progress" ? myPendingToken(participants, myEmail) : null}
+      myToken={myTokens.get(doc.id) ?? null}
+      inPersonPending={inPersonPending(doc, participants, canManage(doc, { userId: profile.id, role }))}
     />
   );
 }

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { cleanPersonName } from "@/lib/email/address";
 import { sendDocument, validateDocumentForSend } from "@/lib/server/send";
 import { BUCKET } from "@/lib/storage";
 import type { DocumentAttachment, DocumentCc, Label } from "@/lib/types";
 
 import { authorizeDocument, authorizeWorkspace, isUuid, wizardPaths, type DocAuth } from "../../../_lib/access";
 import {
-  EMAIL_RE,
+  isValidEmail,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENTS,
   MAX_CC,
@@ -59,10 +60,12 @@ async function cleanSettings(auth: Authorised, input: RequestSettingsInput): Pro
     const seen = new Set<string>();
     const cc: DocumentCc[] = [];
     for (const c of input.cc) {
-      const name = String(c?.name ?? "").trim();
+      const rawName = String(c?.name ?? "");
+      if (rawName.length > 200) return "참조자 이름을 확인해 주세요.";
+      const name = cleanPersonName(rawName, 200);
       const email = String(c?.email ?? "").trim().toLowerCase();
       if (!name || name.length > 50) return "참조자 이름을 확인해 주세요.";
-      if (!EMAIL_RE.test(email) || email.length > 254) return `참조자 이메일 주소(${email || "빈 값"})를 확인해 주세요.`;
+      if (!isValidEmail(email)) return `참조자 이메일 주소(${email.slice(0, 254) || "빈 값"})를 확인해 주세요.`;
       if (seen.has(email)) continue;
       seen.add(email);
       cc.push({ name, email });
@@ -172,7 +175,14 @@ export async function addAttachment(
     return { ok: false, error: `첨부파일은 최대 ${MAX_ATTACHMENTS}개까지 올릴 수 있습니다.` };
   }
   const { data: objects } = await supabase.storage.from(BUCKET).list(prefix.slice(0, -1), { search: objectName });
-  if (!objects?.some((o) => o.name === objectName)) return { ok: false, error: "업로드한 파일을 찾을 수 없습니다." };
+  const object = objects?.find((o) => o.name === objectName);
+  if (!object) return { ok: false, error: "업로드한 파일을 찾을 수 없습니다." };
+  // the bucket limit is sized for generated PDFs: enforce the attachment limit from the stored object
+  const stored = Number((object.metadata as { size?: number } | null)?.size ?? 0);
+  if (!Number.isFinite(stored) || stored > MAX_ATTACHMENT_BYTES) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    return { ok: false, error: "첨부파일은 최대 10MB까지 올릴 수 있습니다." };
+  }
 
   const item: DocumentAttachment = {
     name: String(file.name ?? "첨부파일").trim().slice(0, 200) || "첨부파일",

@@ -53,7 +53,7 @@ export async function addMember(wid: string, input: AddMemberInput): Promise<Act
 
   if (!name) return { ok: false, error: "이름을 입력해 주세요." };
   if (name.length > NAME_MAX) return { ok: false, error: `이름은 ${NAME_MAX}자 이내로 입력해 주세요.` };
-  if (!EMAIL_RE.test(email) || email.length > 254) return { ok: false, error: "올바른 이메일 주소를 입력해 주세요." };
+  if (email.length > 254 || !EMAIL_RE.test(email)) return { ok: false, error: "올바른 이메일 주소를 입력해 주세요." };
   if ((department?.length ?? 0) > ORG_MAX || (position?.length ?? 0) > ORG_MAX) {
     return { ok: false, error: `부서와 직위는 ${ORG_MAX}자 이내로 입력해 주세요.` };
   }

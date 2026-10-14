@@ -16,7 +16,7 @@ Kept outside the repository (they hold captured reference screens and are never 
 `00-REQUIREMENTS.md` (overrides everything), `tokens.md`, `01…11-*.md`; each spec links screenshots in `spec\screens\` — open them with the Read tool and match them.
 
 ## Next.js 16 specifics
-- `middleware.ts` is now **`src/proxy.ts`** (already handles session refresh + auth redirects; public prefixes: /login, /sign/, /link/, /api/sign/, /dev/).
+- `middleware.ts` is now **`src/proxy.ts`** (already handles session refresh + auth redirects; public prefixes: /login, /sign/, /link/, /api/sign/).
 - `params`, `searchParams`, `cookies()`, `headers()` are **async** — `const { wid } = await params`. Use the global helpers `PageProps<'/workspaces/[wid]/…'>` / `LayoutProps<…>` (run `npx next typegen` after adding routes).
 - `cacheComponents` is **off** (classic dynamic rendering). Server Actions body limit is 12 MB.
 - Tailwind v4: CSS-first config in `src/app/globals.css` (no tailwind.config). Read docs in `node_modules/next/dist/docs/` when unsure.
@@ -53,7 +53,7 @@ Shadows: `shadow-menu`, `shadow-modal`, `shadow-card`, `shadow-input`, `shadow-f
 - Signer (public): `/sign/[token]` (token = `participants.access_token`). Internal users who must sign open the same URL.
 - Link sign (public): `/link/[token]` · Templates: `/workspaces/[wid]/templates/new`, `/workspaces/[wid]/templates/[tid]/edit`
 - Settings: `/workspaces/[wid]/settings/workspace/{info,members,groups,roles,security,audit-log}`, `/settings/esign/{automatic-sharing,…}`, `/settings/personal/{member,password,notifications}`
-- Dev: `/dev/mailbox` (outbound_emails viewer)
+- Dev: `/dev/mailbox` (outbound_emails viewer — logged-in owners/admins of the team workspace only)
 
 ## Cross-area contracts
 - `src/lib/server/send.ts` — `sendDocument(documentId: string, opts?: { actor?: {name,email} }): Promise<{ ok: true } | { ok: false; error: string }>` (server-only, caller must be authorised): validates, sets participants (sequential: first `pending`, rest `waiting`; parallel: all `pending`), `expires_at`, `sent_at`, document `in_progress` + `requested_at`, logs `created`/`sent` events, e-mails pending participants with `signRequestEmail` linking to `appUrl('/sign/'+access_token)`.
@@ -61,7 +61,8 @@ Shadows: `shadow-menu`, `shadow-modal`, `shadow-card`, `shadow-input`, `shadow-f
 - `src/components/signature/*` — `SignatureDialog` / `StampDialog` / `SignMethodPicker` (used by 사인·도장 page and signer flow).
 - `src/lib/pdf/finalize.ts` — builds the completed PDF (pdf-lib + `@pdf-lib/fontkit`, Pretendard OTF from `node_modules/pretendard/dist/public/static/Pretendard-Regular.otf`) and stores it at `paths.documentCompleted`.
 - Completion (signer area): when the last signer signs, compute SHA-256 of the completed PDF (store in a new column `documents.completed_hash`), build the 감사 추적 인증서 also as a SEPARATE PDF, and send `completedEmail({ …, documentId, hash })` to every participant, the requester and cc recipients with `sendMail({ …, attachments: [{ filename: title+'.pdf', content: completedBytes }, { filename: '감사 추적 인증서.pdf', content: auditBytes }] })`. Completed documents show the badge "완료" with a check icon (handled by `documentBadge` + `StatusBadge`).
-- `src/lib/server/send.ts` also exports `dispatchScheduled(workspaceId: string)` — sends `scheduled` documents whose `scheduled_at` has passed (no cron; the 문서함 page calls it on load).
+- `src/lib/server/send.ts` also exports `dispatchScheduled(workspaceId: string)` — sends `scheduled` documents whose `scheduled_at` has passed (no cron; the 문서함 page calls it on load) — and `expireOverdue(workspaceId)` (in-progress requests past a pending signer's deadline → `signing_cancelled`). Every send issues fresh `access_token`s.
+- Security model (migration `20261014030000_security_hardening`): `participants.access_token`, `auth_password` and `draft_values` are not readable/writable with the RLS client (column privileges) — read them with the admin client after authorising; own sign links come from `loadMyPendingTokens` (`my_pending_sign_tokens` RPC). participants/fields are writable only by the requester/admin while the document is `draft`/`on_modifying`; user-session updates of `documents` are limited by the `guard_document_change` trigger (cancel / 내용 수정 go through the `doc_cancel_request` / `doc_start_modify` RPCs); `document_events` and `completed.pdf`/`audit.pdf` are written by the server only; stored storage paths must be canonical (service-role code rebuilds paths from ids).
 - Template use: `/workspaces/[wid]/templates/[tid]/use` (route handler / page) creates a draft document from the template (copies PDF, roles → empty participants, fields) and redirects to wizard step 1. The wizard's "준비된 템플릿으로 시작" cards link there.
 - Signer reject entry: `/sign/[token]?action=reject` opens the reject dialog directly (문서함 panel "거절" links there).
 - Fonts for client-side PDF generation (pdf-lib + fontkit): `/fonts/Pretendard-Regular.otf`, `/fonts/Pretendard-Bold.otf`.
