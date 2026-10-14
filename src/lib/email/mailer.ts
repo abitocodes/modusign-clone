@@ -81,7 +81,18 @@ export async function sendMail(input: MailInput): Promise<boolean> {
   return delivered;
 }
 
+/**
+ * Public base URL used in links (mails, sign links): NEXT_PUBLIC_APP_URL if set, otherwise the
+ * production domain Vercel exposes at runtime (VERCEL_PROJECT_PRODUCTION_URL), otherwise localhost.
+ */
+function appBase() {
+  const configured = process.env.NEXT_PUBLIC_APP_URL;
+  if (configured !== undefined) return configured;
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return vercelHost ? `https://${vercelHost}` : "http://localhost:3000";
+}
+
 export function appUrl(path = "") {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const base = appBase().replace(/\/$/, "");
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
