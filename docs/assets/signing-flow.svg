@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620" role="img" aria-labelledby="sf-title sf-desc">
+<title id="sf-title">서명 요청 흐름 · Signing flow — OpenSign</title>
+<desc id="sf-desc">OpenSign 전자서명 요청의 흐름을 요청자(직원)·서버·서명자(외부) 세 개의 레인으로 보여 줍니다. 준비: 1 문서 업로드(PDF·이미지, Supabase Storage), 2 참여자 설정(순서대로/순서없이), 3 입력란 배치, 4 요청 정보(유효 기한·참조자·라벨). 전송: 5 즉시 또는 예약 전송 → 서버 sendDocument가 서명 링크 토큰을 발급하고 서명 요청 메일을 보냄, 6 서명자가 로그인 없이 메일의 /sign/[token] 링크를 엶. 서명: 7 본인 확인(초대받은 이메일, 선택 인증 비밀번호, 실패 시 잠금), 8 입력란 작성, 9 내용 확인 및 전자서명 동의 후 서명 → 서버 sign_submit RPC가 문서 행을 잠그고 저장, 10 순서대로 요청이면 다음 서명자에게 메일을 보내 6단계부터 반복. 서명자는 서명을 거절할 수도 있음(sign_reject → 문서 거절, 요청자에게 사유 포함 메일). 완료: 11 모두 서명하면 완료 PDF·감사 추적 인증서·SHA-256 원본 검증키 생성, 12 요청자·참여자·참조자에게 PDF 2개를 첨부한 완료 메일 발송.</desc>
+<defs>
+<filter id="glow" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<marker id="ah-n" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.2 1.2L7 4L1.2 6.8" fill="none" stroke="#9aa1ad" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="ah-g" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.2 1.2L7 4L1.2 6.8" fill="none" stroke="#ffcb4c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="ah-r" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.2 1.2L7 4L1.2 6.8" fill="none" stroke="#ff6b6b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="ah-gr" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.2 1.2L7 4L1.2 6.8" fill="none" stroke="#3ecf8e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="ah-b" viewBox="0 0 8 8" refX="7.2" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M1.2 1.2L7 4L1.2 6.8" fill="none" stroke="#5991f4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<style><![CDATA[
+/* typography */
+text{font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","Segoe UI",system-ui,sans-serif;fill:#e8eaee}
+.ttl{font-size:22px;font-weight:700}.sbt{font-size:14px;fill:#9aa1ad}
+.lg{font-size:13px;fill:#9aa1ad}.ph{font-size:13px;font-weight:600;fill:#e8eaee}
+.ln{font-size:16px;font-weight:700}.ls{font-size:13px;fill:#9aa1ad}
+.nl{font-size:15px;font-weight:600}.ns{font-size:13px;fill:#9aa1ad}
+.mo{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13px}.vi{fill:#a78bfa}.gn{fill:#3ecf8e}.bl{fill:#5991f4}.rd{fill:#ff6b6b}
+.bd{font-size:13px;font-weight:700}.bdk{fill:#16181d}.pl{font-size:13px;font-weight:600;fill:#ffcb4c}
+/* motion: highlights + packets are additive; static state = complete diagram */
+.hl,.pk{opacity:0}.pk{offset-rotate:0deg}
+@keyframes h-phPrep{0%,1.25%{opacity:0}3.13%,24.38%{opacity:1}27.50%,100%{opacity:0}}
+.h-phPrep{animation:h-phPrep 16s ease-in-out infinite}
+@keyframes h-phSend{0%,25.00%{opacity:0}26.88%,41.88%{opacity:1}45.00%,100%{opacity:0}}
+.h-phSend{animation:h-phSend 16s ease-in-out infinite}
+@keyframes h-phSign{0%,42.50%{opacity:0}44.38%,73.75%{opacity:1}76.88%,100%{opacity:0}}
+.h-phSign{animation:h-phSign 16s ease-in-out infinite}
+@keyframes h-phReject{0%,86.88%{opacity:0}88.75%,98.13%{opacity:0.9}100.00%,100%{opacity:0}}
+.h-phReject{animation:h-phReject 16s ease-in-out infinite}
+@keyframes h-phDone{0%,74.38%{opacity:0}76.25%,86.88%{opacity:1}90.00%,100%{opacity:0}}
+.h-phDone{animation:h-phDone 16s ease-in-out infinite}
+@keyframes g-e1{0%,2.81%{opacity:0}4.69%,6.25%{opacity:0.9}9.38%,100%{opacity:0}}
+.g-e1{animation:g-e1 16s ease-in-out infinite}
+@keyframes g-e2{0%,22.63%{opacity:0}24.50%,25.31%{opacity:0.9}28.44%,100%{opacity:0}}
+.g-e2{animation:g-e2 16s ease-in-out infinite}
+@keyframes g-e3{0%,27.50%{opacity:0}29.38%,31.06%{opacity:0.9}34.19%,100%{opacity:0}}
+.g-e3{animation:g-e3 16s ease-in-out infinite}
+@keyframes g-e4{0%,33.75%{opacity:0}35.63%,37.63%{opacity:0.9}40.75%,100%{opacity:0}}
+.g-e4{animation:g-e4 16s ease-in-out infinite}
+@keyframes g-e5{0%,40.63%{opacity:0}42.50%,43.31%{opacity:0.9}46.44%,100%{opacity:0}}
+.g-e5{animation:g-e5 16s ease-in-out infinite}
+@keyframes g-e6{0%,46.25%{opacity:0}48.13%,48.94%{opacity:0.9}52.06%,100%{opacity:0}}
+.g-e6{animation:g-e6 16s ease-in-out infinite}
+@keyframes g-e7{0%,51.88%{opacity:0}53.75%,54.56%{opacity:0.9}57.69%,100%{opacity:0}}
+.g-e7{animation:g-e7 16s ease-in-out infinite}
+@keyframes g-e8{0%,57.19%{opacity:0}59.06%,60.81%{opacity:0.9}63.94%,100%{opacity:0}}
+.g-e8{animation:g-e8 16s ease-in-out infinite}
+@keyframes g-e9{0%,71.88%{opacity:0}73.75%,74.88%{opacity:0.9}78.00%,100%{opacity:0}}
+.g-e9{animation:g-e9 16s ease-in-out infinite}
+@keyframes g-loop{0%,64.06%{opacity:0}65.94%,71.25%{opacity:0.9}74.38%,100%{opacity:0}}
+.g-loop{animation:g-loop 16s ease-in-out infinite}
+@keyframes g-e10{0%,77.50%{opacity:0}79.38%,81.13%{opacity:0.9}84.25%,100%{opacity:0}}
+.g-e10{animation:g-e10 16s ease-in-out infinite}
+@keyframes g-e11{0%,77.50%{opacity:0}79.38%,81.13%{opacity:0.9}84.25%,100%{opacity:0}}
+.g-e11{animation:g-e11 16s ease-in-out infinite}
+@keyframes g-x1{0%,86.56%{opacity:0}88.44%,90.19%{opacity:0.9}93.31%,100%{opacity:0}}
+.g-x1{animation:g-x1 16s ease-in-out infinite}
+@keyframes g-x2{0%,90.94%{opacity:0}92.81%,94.56%{opacity:0.9}97.69%,100%{opacity:0}}
+.g-x2{animation:g-x2 16s ease-in-out infinite}
+@keyframes h-loop{0%,64.38%{opacity:0}66.25%,72.50%{opacity:1}75.63%,100%{opacity:0}}
+.h-loop{animation:h-loop 16s ease-in-out infinite}
+@keyframes h-wiz{0%,1.25%{opacity:0}3.13%,24.06%{opacity:0.7}27.19%,100%{opacity:0}}
+.h-wiz{animation:h-wiz 16s ease-in-out infinite}
+@keyframes h-row1{0%,1.88%{opacity:0}3.75%,6.88%{opacity:1}10.00%,100%{opacity:0}}
+.h-row1{animation:h-row1 16s ease-in-out infinite}
+@keyframes h-row2{0%,7.50%{opacity:0}9.38%,12.50%{opacity:1}15.63%,100%{opacity:0}}
+.h-row2{animation:h-row2 16s ease-in-out infinite}
+@keyframes h-row3{0%,13.13%{opacity:0}15.00%,18.13%{opacity:1}21.25%,100%{opacity:0}}
+.h-row3{animation:h-row3 16s ease-in-out infinite}
+@keyframes h-row4{0%,18.75%{opacity:0}20.63%,23.75%{opacity:1}26.88%,100%{opacity:0}}
+.h-row4{animation:h-row4 16s ease-in-out infinite}
+@keyframes h-r2{0%,25.31%{opacity:0}27.19%,29.69%{opacity:1}32.81%,100%{opacity:0}}
+.h-r2{animation:h-r2 16s ease-in-out infinite}
+@keyframes h-rr{0%,94.38%{opacity:0}96.25%,97.81%{opacity:1}100.00%,100%{opacity:0}}
+.h-rr{animation:h-rr 16s ease-in-out infinite}
+@keyframes h-r3{0%,80.94%{opacity:0}82.81%,85.63%{opacity:1}88.75%,100%{opacity:0}}
+.h-r3{animation:h-r3 16s ease-in-out infinite}
+@keyframes h-s1{0%,5.94%{opacity:0}7.81%,10.63%{opacity:1}13.75%,100%{opacity:0}}
+.h-s1{animation:h-s1 16s ease-in-out infinite}
+@keyframes h-s2{0%,30.94%{opacity:0}32.81%,35.94%{opacity:1}39.06%,100%{opacity:0}}
+.h-s2{animation:h-s2 16s ease-in-out infinite}
+@keyframes h-sr{0%,90.00%{opacity:0}91.88%,93.75%{opacity:1}96.88%,100%{opacity:0}}
+.h-sr{animation:h-sr 16s ease-in-out infinite}
+@keyframes h-s3{0%,60.62%{opacity:0}62.50%,65.00%{opacity:1}68.13%,100%{opacity:0}}
+.h-s3{animation:h-s3 16s ease-in-out infinite}
+@keyframes h-s5{0%,74.69%{opacity:0}76.56%,79.69%{opacity:1}82.81%,100%{opacity:0}}
+.h-s5{animation:h-s5 16s ease-in-out infinite}
+@keyframes h-n6{0%,37.50%{opacity:0}39.38%,42.19%{opacity:1}45.31%,100%{opacity:0}}
+.h-n6{animation:h-n6 16s ease-in-out infinite}
+@keyframes h-n6b{0%,70.94%{opacity:0}72.81%,73.75%{opacity:0.8}76.88%,100%{opacity:0}}
+.h-n6b{animation:h-n6b 16s ease-in-out infinite}
+@keyframes h-n7{0%,43.13%{opacity:0}45.00%,47.81%{opacity:1}50.94%,100%{opacity:0}}
+.h-n7{animation:h-n7 16s ease-in-out infinite}
+@keyframes h-n8{0%,48.75%{opacity:0}50.63%,53.44%{opacity:1}56.56%,100%{opacity:0}}
+.h-n8{animation:h-n8 16s ease-in-out infinite}
+@keyframes h-n8r{0%,87.19%{opacity:0}89.06%,89.69%{opacity:0.9}92.81%,100%{opacity:0}}
+.h-n8r{animation:h-n8r 16s ease-in-out infinite}
+@keyframes h-n9{0%,54.37%{opacity:0}56.25%,59.06%{opacity:1}62.19%,100%{opacity:0}}
+.h-n9{animation:h-n9 16s ease-in-out infinite}
+@keyframes h-g3{0%,80.94%{opacity:0}82.81%,85.63%{opacity:1}88.75%,100%{opacity:0}}
+.h-g3{animation:h-g3 16s ease-in-out infinite}
+@keyframes p-e1{0%,3.44%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}3.81%{opacity:1}5.56%{opacity:1}5.94%,100%{offset-distance:100%;opacity:0}}
+.p-e1{offset-path:path("M204 280V312");animation:p-e1 16s linear infinite}
+.p-e1.tr1{animation-delay:.06s}.p-e1.tr2{animation-delay:.12s}
+@keyframes p-e2{0%,23.25%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}23.63%{opacity:1}24.63%{opacity:1}25.00%,100%{offset-distance:100%;opacity:0}}
+.p-e2{offset-path:path("M296 208H312");animation:p-e2 16s linear infinite}
+.p-e2.tr1{animation-delay:.06s}.p-e2.tr2{animation-delay:.12s}
+@keyframes p-e3{0%,28.13%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}28.50%{opacity:1}30.38%{opacity:1}30.75%,100%{offset-distance:100%;opacity:0}}
+.p-e3{offset-path:path("M372 244V312");animation:p-e3 16s linear infinite}
+.p-e3.tr1{animation-delay:.06s}.p-e3.tr2{animation-delay:.12s}
+@keyframes p-e4{0%,34.38%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}34.75%{opacity:1}36.94%{opacity:1}37.31%,100%{offset-distance:100%;opacity:0}}
+.p-e4{offset-path:path("M372 400V456");animation:p-e4 16s linear infinite}
+.p-e4.tr1{animation-delay:.06s}.p-e4.tr2{animation-delay:.12s}
+@keyframes p-e5{0%,41.25%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}41.62%{opacity:1}42.63%{opacity:1}43.00%,100%{offset-distance:100%;opacity:0}}
+.p-e5{offset-path:path("M432 506H448");animation:p-e5 16s linear infinite}
+.p-e5.tr1{animation-delay:.06s}.p-e5.tr2{animation-delay:.12s}
+@keyframes p-e6{0%,46.88%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}47.25%{opacity:1}48.25%{opacity:1}48.63%,100%{offset-distance:100%;opacity:0}}
+.p-e6{offset-path:path("M548 506H562");animation:p-e6 16s linear infinite}
+.p-e6.tr1{animation-delay:.06s}.p-e6.tr2{animation-delay:.12s}
+@keyframes p-e7{0%,52.50%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}52.88%{opacity:1}53.87%{opacity:1}54.25%,100%{offset-distance:100%;opacity:0}}
+.p-e7{offset-path:path("M662 506H676");animation:p-e7 16s linear infinite}
+.p-e7.tr1{animation-delay:.06s}.p-e7.tr2{animation-delay:.12s}
+@keyframes p-e8{0%,57.81%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}58.19%{opacity:1}60.12%{opacity:1}60.50%,100%{offset-distance:100%;opacity:0}}
+.p-e8{offset-path:path("M726 456V400");animation:p-e8 16s linear infinite}
+.p-e8.tr1{animation-delay:.06s}.p-e8.tr2{animation-delay:.12s}
+@keyframes p-e9{0%,72.50%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}72.88%{opacity:1}74.19%{opacity:1}74.56%,100%{offset-distance:100%;opacity:0}}
+.p-e9{offset-path:path("M778 344H808");animation:p-e9 16s linear infinite}
+.p-e9.tr1{animation-delay:.06s}.p-e9.tr2{animation-delay:.12s}
+@keyframes p-loop{0%,64.69%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}65.06%{opacity:1}70.56%{opacity:1}70.94%,100%{offset-distance:100%;opacity:0}}
+.p-loop{offset-path:path("M778 380H784Q792 380 792 388V572Q792 580 784 580H380Q372 580 372 572V556");animation:p-loop 16s linear infinite}
+.p-loop.tr1{animation-delay:.06s}.p-loop.tr2{animation-delay:.12s}
+@keyframes p-e10{0%,78.13%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}78.50%{opacity:1}80.44%{opacity:1}80.81%,100%{offset-distance:100%;opacity:0}}
+.p-e10{offset-path:path("M868 312V248");animation:p-e10 16s linear infinite}
+.p-e10.tr1{animation-delay:.06s}.p-e10.tr2{animation-delay:.12s}
+@keyframes p-e11{0%,78.13%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}78.50%{opacity:1}80.44%{opacity:1}80.81%,100%{offset-distance:100%;opacity:0}}
+.p-e11{offset-path:path("M868 428V472");animation:p-e11 16s linear infinite}
+.p-e11.tr1{animation-delay:.06s}.p-e11.tr2{animation-delay:.12s}
+@keyframes p-x1{0%,87.19%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}87.56%{opacity:1}89.50%{opacity:1}89.88%,100%{offset-distance:100%;opacity:0}}
+.p-x1{offset-path:path("M612 456V400");animation:p-x1 16s linear infinite}
+.p-x1.tr1{animation-delay:.06s}.p-x1.tr2{animation-delay:.12s}
+@keyframes p-x2{0%,91.56%{offset-distance:0%;opacity:0;animation-timing-function:ease-in-out}91.94%{opacity:1}93.88%{opacity:1}94.25%,100%{offset-distance:100%;opacity:0}}
+.p-x2{offset-path:path("M612 312V244");animation:p-x2 16s linear infinite}
+.p-x2.tr1{animation-delay:.06s}.p-x2.tr2{animation-delay:.12s}
+@media (prefers-reduced-motion: reduce){*{animation:none !important}}
+]]></style>
+<!-- card -->
+<rect x=".5" y=".5" width="959" height="619" rx="18" fill="#16181d" stroke="#2c3038"/>
+<!-- header: OpenSign mark (64-unit grid scaled to 28 px) + title -->
+<g transform="translate(24 24) scale(.4375)"><rect width="64" height="64" rx="14" fill="#ffcb4c"/><path d="M15 28A12 12 0 0 1 39 28M25 36A12 12 0 0 0 49 36" fill="none" stroke="#191919" stroke-width="8" stroke-linecap="round"/></g>
+<text x="64" y="46" class="ttl">서명 요청 흐름 · Signing flow</text>
+<text x="64" y="70" class="sbt">업로드부터 완료 PDF·감사 추적 인증서까지</text>
+<!-- legend -->
+<circle cx="630" cy="45.5" r="4" fill="#ffcb4c" filter="url(#glow)"/><text x="640" y="50" class="lg">진행 토큰</text><circle cx="720" cy="45.5" r="4" fill="#3ecf8e" filter="url(#glow)"/><text x="730" y="50" class="lg">완료</text><circle cx="782" cy="45.5" r="4" fill="#ff6b6b" filter="url(#glow)"/><text x="792" y="50" class="lg">거절</text><path d="M842 45.5h18" stroke="#ffcb4c" stroke-width="1.75" stroke-dasharray="4 3" stroke-linecap="round"/><text x="868" y="50" class="lg">다음 서명자</text>
+<!-- phase bar: 준비 · 전송 · 서명 · 완료 -->
+<rect x="112" y="88" width="184" height="24" rx="12" fill="#1f2229" stroke="#3a3f49"/><rect x="112" y="88" width="184" height="24" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-phPrep"/><text x="204" y="104.5" class="ph" text-anchor="middle">준비 · Prepare</text>
+<rect x="312" y="88" width="120" height="24" rx="12" fill="#1f2229" stroke="#3a3f49"/><rect x="312" y="88" width="120" height="24" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-phSend"/><text x="372" y="104.5" class="ph" text-anchor="middle">전송 · Send</text>
+<rect x="448" y="88" width="336" height="24" rx="12" fill="#1f2229" stroke="#3a3f49"/><rect x="448" y="88" width="336" height="24" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-phSign"/><rect x="448" y="88" width="336" height="24" rx="12" fill="#ff6b6b" fill-opacity=".12" stroke="#ff6b6b" stroke-width="1.5" class="hl h-phReject"/><text x="616" y="104.5" class="ph" text-anchor="middle">서명 · Sign</text>
+<rect x="808" y="88" width="120" height="24" rx="12" fill="#1f2229" stroke="#3a3f49"/><rect x="808" y="88" width="120" height="24" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-phDone"/><text x="868" y="104.5" class="ph" text-anchor="middle">완료 · Done</text>
+<!-- swim lanes -->
+<rect x="24" y="120" width="912" height="168" rx="12" fill="#1f2229"/><path d="M36 120h68v168h-68a12 12 0 0 1-12-12v-144a12 12 0 0 1 12-12z" fill="#272b33"/>
+<g transform="translate(54 162)" fill="none" stroke="#5991f4" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.5" r="3.75"/><path d="M3.5 18c0-3.6 2.9-6.25 6.5-6.25S16.5 14.4 16.5 18"/></g><text x="64" y="206" class="ln" text-anchor="middle">요청자</text><text x="64" y="226" class="ls" text-anchor="middle">Requester</text><text x="64" y="244" class="ls" text-anchor="middle">직원</text>
+<rect x="24" y="296" width="912" height="140" rx="12" fill="#1f2229"/><path d="M36 296h68v140h-68a12 12 0 0 1-12-12v-116a12 12 0 0 1 12-12z" fill="#272b33"/>
+<g transform="translate(54 324)" fill="none" stroke="#a78bfa" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="14" height="6.25" rx="1.75"/><rect x="3" y="11.25" width="14" height="6.25" rx="1.75"/><path d="M6.5 5.6h.01M6.5 14.4h.01"/></g><text x="64" y="368" class="ln" text-anchor="middle">서버</text><text x="64" y="388" class="ls" text-anchor="middle">Server</text><text x="64" y="406" class="ls" text-anchor="middle">OpenSign</text>
+<rect x="24" y="444" width="912" height="152" rx="12" fill="#1f2229"/><path d="M36 444h68v152h-68a12 12 0 0 1-12-12v-128a12 12 0 0 1 12-12z" fill="#272b33"/>
+<g transform="translate(54 478)" fill="none" stroke="#5991f4" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 3.4l4 4L7.4 16.6 2.9 17.1l.5-4.5z"/><path d="M10.6 5.4l4 4"/></g><text x="64" y="522" class="ln" text-anchor="middle">서명자</text><text x="64" y="542" class="ls" text-anchor="middle">Signer</text><text x="64" y="560" class="ls" text-anchor="middle">외부</text>
+<!-- connectors -->
+<path d="M204 280V312" fill="none" stroke="#5991f4" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-b)"/>
+<path d="M204 280V312" fill="none" stroke="#5991f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e1"/>
+<path d="M296 208H312" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M296 208H312" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e2"/>
+<path d="M372 244V312" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M372 244V312" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e3"/>
+<path d="M372 400V456" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M372 400V456" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e4"/>
+<path d="M432 506H448" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M432 506H448" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e5"/>
+<path d="M548 506H562" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M548 506H562" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e6"/>
+<path d="M662 506H676" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M662 506H676" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e7"/>
+<path d="M726 456V400" fill="none" stroke="#9aa1ad" stroke-opacity=".6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-n)"/>
+<path d="M726 456V400" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e8"/>
+<path d="M778 344H808" fill="none" stroke="#3ecf8e" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-gr)"/>
+<path d="M778 344H808" fill="none" stroke="#3ecf8e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e9"/>
+<path d="M778 380H784Q792 380 792 388V572Q792 580 784 580H380Q372 580 372 572V556" fill="none" stroke="#ffcb4c" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#ah-g)"/>
+<path d="M778 380H784Q792 380 792 388V572Q792 580 784 580H380Q372 580 372 572V556" fill="none" stroke="#ffcb4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-loop" stroke-dasharray="4 4"/>
+<path d="M868 312V248" fill="none" stroke="#3ecf8e" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-gr)"/>
+<path d="M868 312V248" fill="none" stroke="#3ecf8e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e10"/>
+<path d="M868 428V472" fill="none" stroke="#3ecf8e" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah-gr)"/>
+<path d="M868 428V472" fill="none" stroke="#3ecf8e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-e11"/>
+<path d="M612 456V400" fill="none" stroke="#ff6b6b" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#ah-r)"/>
+<path d="M612 456V400" fill="none" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-x1" stroke-dasharray="4 4"/>
+<path d="M612 312V244" fill="none" stroke="#ff6b6b" stroke-opacity=".75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#ah-r)"/>
+<path d="M612 312V244" fill="none" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hl g-x2" stroke-dasharray="4 4"/>
+<text x="386" y="431" class="ns">서명 요청 메일</text>
+<text x="620" y="431" class="ns rd">또는 거절</text>
+<!-- step 10: sequential requests loop back to the next signer --><g><rect x="472" y="569" width="176" height="22" rx="11" fill="#1f2229" stroke="#ffcb4c" stroke-opacity=".7" stroke-width="1.5"/><rect x="472" y="569" width="176" height="22" rx="11" fill="#ffcb4c" fill-opacity=".18" stroke="#ffcb4c" stroke-width="1.5" class="hl h-loop"/><circle cx="487" cy="580" r="10" fill="#ffcb4c"/><text x="487" y="584.5" class="bd bdk" text-anchor="middle">10</text><text x="503" y="584.5" class="pl">다음 서명자 · 순서대로</text></g>
+<!-- requester lane -->
+<g id="wizard"><rect x="112" y="128" width="184" height="152" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="112" y="128" width="184" height="152" rx="12" fill="none" stroke="#ffcb4c" stroke-width="1.5" class="hl h-wiz"/><path d="M131 144V252" stroke="#3a3f49" stroke-width="1.5"/><rect x="116" y="132" width="176" height="36" rx="8" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-opacity=".8" class="hl h-row1"/><circle cx="131" cy="144" r="9" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="131" cy="144" r="9" fill="#ffcb4c" class="hl h-row1"/><text x="131" y="148.5" class="bd" text-anchor="middle">1</text><text x="131" y="148.5" class="bd bdk hl h-row1" text-anchor="middle">1</text><text x="146" y="149" class="nl">문서 업로드</text><text x="146" y="164" class="ns">PDF·이미지 · 여러 파일</text><rect x="116" y="168" width="176" height="36" rx="8" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-opacity=".8" class="hl h-row2"/><circle cx="131" cy="180" r="9" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="131" cy="180" r="9" fill="#ffcb4c" class="hl h-row2"/><text x="131" y="184.5" class="bd" text-anchor="middle">2</text><text x="131" y="184.5" class="bd bdk hl h-row2" text-anchor="middle">2</text><text x="146" y="185" class="nl">참여자 설정</text><text x="146" y="200" class="ns">순서대로 / 순서없이</text><rect x="116" y="204" width="176" height="36" rx="8" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-opacity=".8" class="hl h-row3"/><circle cx="131" cy="216" r="9" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="131" cy="216" r="9" fill="#ffcb4c" class="hl h-row3"/><text x="131" y="220.5" class="bd" text-anchor="middle">3</text><text x="131" y="220.5" class="bd bdk hl h-row3" text-anchor="middle">3</text><text x="146" y="221" class="nl">입력란 배치</text><text x="146" y="236" class="ns">사인·도장 · 텍스트 …</text><rect x="116" y="240" width="176" height="36" rx="8" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-opacity=".8" class="hl h-row4"/><circle cx="131" cy="252" r="9" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="131" cy="252" r="9" fill="#ffcb4c" class="hl h-row4"/><text x="131" y="256.5" class="bd" text-anchor="middle">4</text><text x="131" y="256.5" class="bd bdk hl h-row4" text-anchor="middle">4</text><text x="146" y="257" class="nl">요청 정보</text><text x="146" y="272" class="ns">유효 기한·참조자·라벨</text></g>
+<g id="send"><rect x="312" y="172" width="120" height="72" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="312" y="172" width="120" height="72" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-r2"/><text x="372" y="205" class="nl" text-anchor="middle">즉시 전송</text><text x="372" y="225" class="ns" text-anchor="middle">또는 예약 전송</text><circle cx="332" cy="172" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="332" cy="172" r="10" fill="#ffcb4c" class="hl h-r2"/><text x="332" y="176.5" class="bd" text-anchor="middle">5</text><text x="332" y="176.5" class="bd bdk hl h-r2" text-anchor="middle">5</text></g>
+<g id="reject-mail"><rect x="560" y="172" width="104" height="72" rx="12" fill="#272b33" stroke="#ff6b6b" stroke-opacity=".55" stroke-width="1.5"/><rect x="560" y="172" width="104" height="72" rx="12" fill="#ff6b6b" fill-opacity=".15" stroke="#ff6b6b" stroke-width="1.5" class="hl h-rr"/><text x="612" y="204" class="nl rd" text-anchor="middle">거절 알림</text><text x="612" y="224" class="ns" text-anchor="middle">사유 포함 메일</text></g>
+<g id="done-mail-requester"><rect x="808" y="168" width="120" height="80" rx="12" fill="#272b33" stroke="#3ecf8e" stroke-opacity=".55" stroke-width="1.5"/><rect x="808" y="168" width="120" height="80" rx="12" fill="#3ecf8e" fill-opacity=".15" stroke="#3ecf8e" stroke-width="1.5" class="hl h-r3"/><text x="868" y="198" class="nl" text-anchor="middle">완료 메일</text><text x="868" y="218" class="ns" text-anchor="middle">PDF 2개 첨부</text><text x="868" y="236" class="ns" text-anchor="middle">요청자·참조자</text><circle cx="828" cy="168" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="828" cy="168" r="10" fill="#3ecf8e" class="hl h-r3"/><text x="828" y="172.5" class="bd" text-anchor="middle">12</text><text x="828" y="172.5" class="bd bdk hl h-r3" text-anchor="middle">12</text></g>
+<!-- server lane -->
+<g id="storage"><rect x="112" y="312" width="184" height="88" rx="12" fill="#272b33" stroke="#3ecf8e" stroke-opacity=".55" stroke-width="1.5"/><rect x="112" y="312" width="184" height="88" rx="12" fill="#3ecf8e" fill-opacity=".15" stroke="#3ecf8e" stroke-width="1.5" class="hl h-s1"/><text x="204" y="340" class="nl gn" text-anchor="middle">Supabase Storage</text><text x="204" y="362" class="mo gn" text-anchor="middle">original.pdf</text><text x="204" y="382" class="ns" text-anchor="middle">형식·크기 확인 · draft</text></g>
+<g id="send-document"><rect x="312" y="312" width="120" height="88" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="312" y="312" width="120" height="88" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-s2"/><text x="372" y="340" class="nl" text-anchor="middle">전송 처리</text><text x="372" y="362" class="mo vi" text-anchor="middle">sendDocument</text><text x="372" y="382" class="ns" text-anchor="middle">토큰 발급 · 메일</text></g>
+<g id="sign-reject"><rect x="560" y="312" width="104" height="88" rx="12" fill="#272b33" stroke="#ff6b6b" stroke-opacity=".55" stroke-width="1.5"/><rect x="560" y="312" width="104" height="88" rx="12" fill="#ff6b6b" fill-opacity=".15" stroke="#ff6b6b" stroke-width="1.5" class="hl h-sr"/><text x="612" y="340" class="nl rd" text-anchor="middle">서명 거절</text><text x="612" y="362" class="mo vi" text-anchor="middle">sign_reject</text><text x="612" y="382" class="ns" text-anchor="middle">문서 → 거절</text></g>
+<g id="sign-submit"><rect x="674" y="312" width="104" height="88" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="674" y="312" width="104" height="88" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-s3"/><text x="726" y="340" class="nl" text-anchor="middle">서명 저장</text><text x="726" y="362" class="mo vi" text-anchor="middle">sign_submit</text><text x="726" y="382" class="ns" text-anchor="middle">문서 행 잠금</text></g>
+<g id="finalize"><rect x="808" y="312" width="120" height="116" rx="12" fill="#272b33" stroke="#3ecf8e" stroke-opacity=".55" stroke-width="1.5"/><rect x="808" y="312" width="120" height="116" rx="12" fill="#3ecf8e" fill-opacity=".15" stroke="#3ecf8e" stroke-width="1.5" class="hl h-s5"/><text x="868" y="339" class="ns" text-anchor="middle">모두 서명하면</text><text x="868" y="360" class="nl" text-anchor="middle">완료 처리</text><text x="868" y="381" class="ns" text-anchor="middle">완료 PDF</text><text x="868" y="399" class="ns" text-anchor="middle">감사 추적 인증서</text><text x="868" y="417" class="mo gn" text-anchor="middle">SHA-256</text><circle cx="828" cy="312" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="828" cy="312" r="10" fill="#3ecf8e" class="hl h-s5"/><text x="828" y="316.5" class="bd" text-anchor="middle">11</text><text x="828" y="316.5" class="bd bdk hl h-s5" text-anchor="middle">11</text></g>
+<!-- signer lane -->
+<g id="note-parallel"><rect x="112" y="472" width="184" height="72" rx="12" fill="none" stroke="#3a3f49" stroke-width="1.5" stroke-dasharray="3 4"/><g transform="translate(124 484)" fill="none" stroke="#9aa1ad" stroke-width="1.75" stroke-linecap="round"><circle cx="8" cy="8" r="7"/><path d="M8 7.5v4M8 4.6h.01"/></g><text x="146" y="497" class="ns">순서없이 요청은</text><text x="124" y="517" class="ns">모든 서명자에게 동시에</text><text x="124" y="535" class="ns">서명 요청 메일 발송</text></g>
+<g id="open-link"><rect x="312" y="456" width="120" height="100" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="312" y="456" width="120" height="100" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-n6"/><text x="372" y="488" class="nl" text-anchor="middle">메일 링크 열기</text><text x="372" y="510" class="mo bl" text-anchor="middle">/sign/[token]</text><text x="372" y="530" class="ns" text-anchor="middle">로그인 없이</text><circle cx="332" cy="456" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="332" cy="456" r="10" fill="#ffcb4c" class="hl h-n6"/><text x="332" y="460.5" class="bd" text-anchor="middle">6</text><text x="332" y="460.5" class="bd bdk hl h-n6" text-anchor="middle">6</text></g>
+<rect x="312" y="456" width="120" height="100" rx="12" fill="none" stroke="#ffcb4c" stroke-width="1.5" class="hl h-n6b"/>
+<g id="identity"><rect x="448" y="456" width="100" height="100" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="448" y="456" width="100" height="100" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-n7"/><text x="498" y="484" class="nl" text-anchor="middle">본인 확인</text><text x="498" y="505" class="ns" text-anchor="middle">이메일 확인</text><text x="498" y="523" class="ns" text-anchor="middle">비밀번호(선택)</text><text x="498" y="541" class="ns" text-anchor="middle">실패 시 잠금</text><circle cx="468" cy="456" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="468" cy="456" r="10" fill="#ffcb4c" class="hl h-n7"/><text x="468" y="460.5" class="bd" text-anchor="middle">7</text><text x="468" y="460.5" class="bd bdk hl h-n7" text-anchor="middle">7</text></g>
+<g id="fill-fields"><rect x="562" y="456" width="100" height="100" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="562" y="456" width="100" height="100" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-n8"/><text x="612" y="484" class="nl" text-anchor="middle">입력란 작성</text><text x="612" y="505" class="ns" text-anchor="middle">사인·도장</text><text x="612" y="523" class="ns" text-anchor="middle">텍스트·날짜</text><text x="612" y="541" class="ns" text-anchor="middle">임시저장 가능</text><circle cx="582" cy="456" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="582" cy="456" r="10" fill="#ffcb4c" class="hl h-n8"/><text x="582" y="460.5" class="bd" text-anchor="middle">8</text><text x="582" y="460.5" class="bd bdk hl h-n8" text-anchor="middle">8</text></g>
+<rect x="562" y="456" width="100" height="100" rx="12" fill="#ff6b6b" fill-opacity=".1" stroke="#ff6b6b" stroke-width="1.5" class="hl h-n8r"/>
+<g id="agree-sign"><rect x="676" y="456" width="100" height="100" rx="12" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><rect x="676" y="456" width="100" height="100" rx="12" fill="#ffcb4c" fill-opacity=".15" stroke="#ffcb4c" stroke-width="1.5" class="hl h-n9"/><text x="726" y="484" class="nl" text-anchor="middle">동의 후 서명</text><text x="726" y="505" class="ns" text-anchor="middle">내용 확인 및</text><text x="726" y="523" class="ns" text-anchor="middle">전자서명 동의</text><circle cx="696" cy="456" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="696" cy="456" r="10" fill="#ffcb4c" class="hl h-n9"/><text x="696" y="460.5" class="bd" text-anchor="middle">9</text><text x="696" y="460.5" class="bd bdk hl h-n9" text-anchor="middle">9</text></g>
+<g id="done-mail-signer"><rect x="808" y="472" width="120" height="80" rx="12" fill="#272b33" stroke="#3ecf8e" stroke-opacity=".55" stroke-width="1.5"/><rect x="808" y="472" width="120" height="80" rx="12" fill="#3ecf8e" fill-opacity=".15" stroke="#3ecf8e" stroke-width="1.5" class="hl h-g3"/><text x="868" y="502" class="nl" text-anchor="middle">완료 메일</text><text x="868" y="522" class="ns" text-anchor="middle">PDF 2개 첨부</text><text x="868" y="540" class="ns" text-anchor="middle">모든 참여자</text><circle cx="828" cy="472" r="10" fill="#272b33" stroke="#3a3f49" stroke-width="1.5"/><circle cx="828" cy="472" r="10" fill="#3ecf8e" class="hl h-g3"/><text x="828" y="476.5" class="bd" text-anchor="middle">12</text><text x="828" y="476.5" class="bd bdk hl h-g3" text-anchor="middle">12</text></g>
+<!-- travelling packets (CSS offset-path) -->
+<g class="pk p-e1 tr2"><circle r="1.8" fill="#5991f4" fill-opacity=".35"/></g><g class="pk p-e1 tr1"><circle r="2.4" fill="#5991f4" fill-opacity=".6"/></g><g class="pk p-e1"><circle r="6" fill="#5991f4" fill-opacity=".22"/><circle r="3" fill="#5991f4" filter="url(#glow)"/></g>
+<g class="pk p-e2 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e2 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e2"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e3 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e3 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e3"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e4 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e4 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e4"><g filter="url(#glow)"><rect x="-6.5" y="-4.75" width="13" height="9.5" rx="2" fill="#ffcb4c"/><path d="M-5 -3.2L0 .6L5 -3.2" fill="none" stroke="#16181d" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="pk p-e5 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e5 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e5"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e6 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e6 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e6"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e7 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e7 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e7"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e8 tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-e8 tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-e8"><circle r="6" fill="#ffcb4c" fill-opacity=".22"/><circle r="3" fill="#ffcb4c" filter="url(#glow)"/></g>
+<g class="pk p-e9 tr2"><circle r="1.8" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p-e9 tr1"><circle r="2.4" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p-e9"><circle r="6" fill="#3ecf8e" fill-opacity=".22"/><circle r="3" fill="#3ecf8e" filter="url(#glow)"/></g>
+<g class="pk p-loop tr2"><circle r="1.8" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p-loop tr1"><circle r="2.4" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p-loop"><g filter="url(#glow)"><rect x="-6.5" y="-4.75" width="13" height="9.5" rx="2" fill="#ffcb4c"/><path d="M-5 -3.2L0 .6L5 -3.2" fill="none" stroke="#16181d" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="pk p-e10 tr2"><circle r="1.8" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p-e10 tr1"><circle r="2.4" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p-e10"><g filter="url(#glow)"><rect x="-6.5" y="-4.75" width="13" height="9.5" rx="2" fill="#3ecf8e"/><path d="M-5 -3.2L0 .6L5 -3.2" fill="none" stroke="#16181d" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="pk p-e11 tr2"><circle r="1.8" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p-e11 tr1"><circle r="2.4" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p-e11"><g filter="url(#glow)"><rect x="-6.5" y="-4.75" width="13" height="9.5" rx="2" fill="#3ecf8e"/><path d="M-5 -3.2L0 .6L5 -3.2" fill="none" stroke="#16181d" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="pk p-x1 tr2"><circle r="1.8" fill="#ff6b6b" fill-opacity=".35"/></g><g class="pk p-x1 tr1"><circle r="2.4" fill="#ff6b6b" fill-opacity=".6"/></g><g class="pk p-x1"><circle r="6" fill="#ff6b6b" fill-opacity=".22"/><circle r="3" fill="#ff6b6b" filter="url(#glow)"/></g>
+<g class="pk p-x2 tr2"><circle r="1.8" fill="#ff6b6b" fill-opacity=".35"/></g><g class="pk p-x2 tr1"><circle r="2.4" fill="#ff6b6b" fill-opacity=".6"/></g><g class="pk p-x2"><g filter="url(#glow)"><rect x="-6.5" y="-4.75" width="13" height="9.5" rx="2" fill="#ff6b6b"/><path d="M-5 -3.2L0 .6L5 -3.2" fill="none" stroke="#16181d" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+</svg>

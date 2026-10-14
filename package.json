@@ -1,6 +1,27 @@
 {
   "name": "opensign",
   "version": "0.1.0",
+  "description": "Open-source e-signature app for teams — Next.js 16 + Supabase (OpenSign)",
+  "license": "MIT",
+  "author": "abitocodes",
+  "homepage": "https://github.com/abitocodes/opensign#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abitocodes/opensign.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abitocodes/opensign/issues"
+  },
+  "keywords": [
+    "e-signature",
+    "electronic-signature",
+    "document-signing",
+    "nextjs",
+    "supabase",
+    "typescript",
+    "tailwindcss",
+    "korean"
+  ],
   "private": true,
   "scripts": {
     "dev": "next dev",

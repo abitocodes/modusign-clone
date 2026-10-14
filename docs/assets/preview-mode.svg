@@ -1,0 +1,324 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="608" viewBox="0 0 960 608" role="img" aria-labelledby="pm-title pm-desc">
+  <title id="pm-title">미리보기 모드 · Preview mode</title>
+  <desc id="pm-desc">같은 Next.js 앱이 NEXT_PUBLIC_PREVIEW_MODE 플래그에 따라 실제 Supabase(Auth, Postgres + RLS, Storage)와 SMTP를 쓰거나, src/lib/preview 의 서버 메모리 가짜 백엔드(schema.ts, db.ts, select.ts, rpc, auth.ts, storage.ts, seed.ts, /dev/mailbox)를 씁니다. 미리보기 전용 버튼은 미리보기에서만 보이며, 그 밖에서는 resolveAlias 가 빈 모듈로 바꾸고 /api/preview/* 는 404, NODE_ENV=production 이면 PREVIEW 는 false 입니다. The same Next.js app talks either to the real Supabase backend and SMTP, or, with npm run dev:preview, to an in-memory mock backend; preview-only buttons are stripped outside preview mode.</desc>
+
+  <style>
+    /* ---------- type ---------- */
+    .f  { font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", system-ui, sans-serif; }
+    .m  { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .s13 { font-size: 13px; } .s14 { font-size: 14px; } .s15 { font-size: 15px; } .s16 { font-size: 16px; } .s22 { font-size: 22px; }
+    .b  { font-weight: 700; }
+    .tx { fill: #e8eaee; } .mu { fill: #9aa1ad; }
+    .gd { fill: #ffcb4c; } .gr { fill: #3ecf8e; } .bl { fill: #5991f4; } .vi { fill: #a78bfa; } .rd { fill: #ff6b6b; }
+    .mid { text-anchor: middle; } .end { text-anchor: end; }
+
+    /* ---------- shapes ---------- */
+    .panel  { fill: #1f2229; stroke: #3a3f49; stroke-width: 1.5; }
+    .raised { fill: #272b33; stroke: #3a3f49; stroke-width: 1.5; }
+    .wire   { fill: none; stroke: #9aa1ad; stroke-opacity: .55; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .head   { fill: #9aa1ad; fill-opacity: .55; }
+    .ico    { fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .dash   { fill: #ffcb4c; fill-opacity: .08; stroke: #ffcb4c; stroke-width: 1.25; stroke-dasharray: 4 3; }
+
+    /* ---------- highlight overlays (invisible in the static diagram) ---------- */
+    .hl { opacity: 0; stroke-width: 1.5; }
+    .hl-g { fill: rgba(62,207,142,.15);  stroke: #3ecf8e; }
+    .hl-y { fill: rgba(255,203,76,.15);  stroke: #ffcb4c; }
+    .hl-b { fill: rgba(89,145,244,.15);  stroke: #5991f4; }
+    .hl-v { fill: rgba(167,139,250,.14); stroke: #a78bfa; }
+    .hl-g.soft { fill: rgba(62,207,142,.06); } .hl-y.soft { fill: rgba(255,203,76,.06); } .hl-v.soft { fill: rgba(167,139,250,.06); }
+    .hl-line { opacity: 0; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /*
+      ONE 12 s timeline (all animations: 12s, infinite, synced by animation-delay)
+        0.0 – 6.0 s  real backend   (npm run dev / production)       lever up
+        6.0 – 12.0 s preview mode   (npm run dev:preview, flag = 1)   lever down
+      pulse = 0.72 s highlight starting at its animation-delay
+    */
+    .pulse { animation: pulse 12s ease-in-out infinite; }
+    @keyframes pulse { 0% { opacity: 0 } 1.5% { opacity: 1 } 4.5% { opacity: 1 } 6% { opacity: 0 } 100% { opacity: 0 } }
+
+    /* half-cycle states */
+    .on-real  { animation: onReal 12s ease-in-out infinite; }
+    @keyframes onReal  { 0%, 13% { opacity: 0 } 15%, 44% { opacity: 1 } 46%, 100% { opacity: 0 } }
+    .on-mock  { animation: onMock 12s ease-in-out infinite; }
+    @keyframes onMock  { 0%, 63% { opacity: 0 } 65%, 94% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .on-guard { animation: onGuard 12s ease-in-out infinite; }
+    @keyframes onGuard { 0%, 34% { opacity: 0 } 36%, 45% { opacity: 1 } 47%, 100% { opacity: 0 } }
+    .on-ui    { animation: onUi 12s ease-in-out infinite; }
+    @keyframes onUi    { 0%, 88% { opacity: 0 } 89.5%, 96% { opacity: 1 } 97.5%, 100% { opacity: 0 } }
+    /* switch contacts / output wires */
+    .on-top   { animation: onTop 12s ease-in-out infinite; }
+    @keyframes onTop   { 0%, 44% { opacity: 1 } 47%, 97% { opacity: 0 } 100% { opacity: 1 } }
+    .on-bot   { animation: onBot 12s ease-in-out infinite; }
+    @keyframes onBot   { 0%, 48% { opacity: 0 } 51%, 94% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .lab-top { animation: labTop 12s ease-in-out infinite; }
+    @keyframes labTop  { 0%, 44% { fill: #3ecf8e } 47%, 97% { fill: #9aa1ad } 100% { fill: #3ecf8e } }
+    .lab-bot { animation: labBot 12s ease-in-out infinite; }
+    @keyframes labBot  { 0%, 48% { fill: #9aa1ad } 51%, 94% { fill: #ffcb4c } 97%, 100% { fill: #9aa1ad } }
+
+    /* the lever: rotates about the pivot (its local origin) between the two contacts */
+    .lever { transform-box: view-box; transform-origin: 0 0; animation: lever 12s ease-in-out infinite; }
+    @keyframes lever { 0%, 45% { transform: rotate(-18.435deg) } 50%, 95% { transform: rotate(18.435deg) } 100% { transform: rotate(-18.435deg) } }
+
+    /* travelling packets: drawn at 0,0 and moved along offset-path */
+    .pk { opacity: 0; offset-rotate: 0deg; offset-distance: 0%; }
+    .pk-a { offset-path: path("M112 176 V200"); animation: pkShort 12s ease-in-out infinite; }
+    .pk-r { offset-path: path("M200 322 H216 V240 H272 L392 200 H456"); animation: pkLong 12s ease-in-out infinite; }
+    .pk-p { offset-path: path("M200 322 H216 V240 H272 L392 280 H456"); animation: pkLong 12s ease-in-out infinite; }
+    @keyframes pkShort { 0% { offset-distance: 0%; opacity: 0 } .6% { opacity: 1 } 4.8% { opacity: 1 } 5.4% { offset-distance: 100%; opacity: 0 } 100% { offset-distance: 100%; opacity: 0 } }
+    @keyframes pkLong  { 0% { offset-distance: 0%; opacity: 0 } .6% { opacity: 1 } 7%   { opacity: 1 } 7.5% { offset-distance: 100%; opacity: 0 } 100% { offset-distance: 100%; opacity: 0 } }
+    .tr1 { fill-opacity: .45; } .tr2 { fill-opacity: .2; }
+
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+
+  <defs>
+    <filter id="glow" x="-200%" y="-200%" width="500%" height="500%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ===================== card + header ===================== -->
+  <rect x="0.5" y="0.5" width="959" height="607" rx="18" fill="#16181d" stroke="#2c3038"/>
+
+  <!-- OpenSign mark, 28 px -->
+  <g transform="translate(24 24) scale(0.4375)">
+    <rect width="64" height="64" rx="14" fill="#ffcb4c"/>
+    <path d="M15 28A12 12 0 0 1 39 28M25 36A12 12 0 0 0 49 36" fill="none" stroke="#191919" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <text x="64" y="45" class="f s22 b tx">미리보기 모드 · Preview mode</text>
+  <text x="64" y="70" class="f s14 mu">백엔드 없이 모든 화면을 클릭해 보는 방법 — 같은 앱, 바뀌는 건 백엔드뿐</text>
+
+  <!-- legend -->
+  <g class="f s13 mu">
+    <circle cx="596" cy="40" r="4" fill="#5991f4"/><text x="606" y="45">브라우저 요청</text>
+    <circle cx="700" cy="40" r="4" fill="#3ecf8e"/><text x="710" y="45">실제 백엔드</text>
+    <circle cx="792" cy="40" r="4" fill="#ffcb4c"/><text x="802" y="45">미리보기 전용</text>
+  </g>
+
+  <!-- ===================== column A: browser → Next.js ===================== -->
+  <!-- Browser -->
+  <rect x="24" y="104" width="176" height="72" rx="12" class="panel"/>
+  <rect x="24" y="104" width="176" height="72" rx="12" class="hl hl-b pulse" style="animation-delay:.1s"/>
+  <rect x="24" y="104" width="176" height="72" rx="12" class="hl hl-b pulse" style="animation-delay:6.1s"/>
+  <g class="ico" stroke="#5991f4">
+    <rect x="40" y="123" width="22" height="18" rx="3"/>
+    <path d="M40 129h22"/>
+  </g>
+  <text x="76" y="134" class="f s16 b tx">브라우저</text>
+  <text x="76" y="154" class="f s13 mu">Browser</text>
+
+  <!-- arrow Browser → Next.js -->
+  <path d="M112 176V194" class="wire"/>
+  <path d="M107 193L112 200L117 193Z" class="head"/>
+
+  <!-- Next.js app (same code in both modes) -->
+  <rect x="24" y="200" width="176" height="232" rx="12" class="panel"/>
+  <g class="ico" stroke="#e8eaee">
+    <path d="M46 216l-6 6 6 6M54 216l6 6-6 6"/>
+  </g>
+  <text x="68" y="228" class="f s16 b tx">Next.js 앱</text>
+  <text x="40" y="250" class="f s13 mu">같은 코드 · Same app</text>
+
+  <!-- hook points: each one branches on PREVIEW -->
+  <rect x="40" y="264" width="144" height="28" rx="8" class="raised"/>
+  <rect x="40" y="264" width="144" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:.75s"/>
+  <rect x="40" y="264" width="144" height="28" rx="8" class="hl hl-y pulse" style="animation-delay:6.75s"/>
+  <text x="52" y="283" class="m s13 tx">src/proxy.ts</text>
+
+  <rect x="40" y="300" width="144" height="44" rx="8" class="raised"/>
+  <rect x="40" y="300" width="144" height="44" rx="8" class="hl hl-g pulse" style="animation-delay:.9s"/>
+  <rect x="40" y="300" width="144" height="44" rx="8" class="hl hl-y pulse" style="animation-delay:6.9s"/>
+  <text x="52" y="318" class="m s13 tx">lib/supabase/*</text>
+  <text x="52" y="336" class="f s13 mu">server·client·admin</text>
+
+  <rect x="40" y="352" width="144" height="28" rx="8" class="raised"/>
+  <rect x="40" y="352" width="144" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:3.6s"/>
+  <rect x="40" y="352" width="144" height="28" rx="8" class="hl hl-y pulse" style="animation-delay:10.3s"/>
+  <text x="52" y="371" class="m s13 tx">email/mailer.ts</text>
+
+  <text x="40" y="412" class="f s13 mu"><tspan class="m gd">if (PREVIEW)</tspan> 로 분기</text>
+
+  <!-- ===================== switch ===================== -->
+  <rect x="232" y="136" width="192" height="208" rx="12" class="panel"/>
+  <text x="244" y="162" class="m s13 tx" textLength="168" lengthAdjust="spacingAndGlyphs">NEXT_PUBLIC_PREVIEW_MODE</text>
+
+  <!-- contact labels (state of the env flag) -->
+  <text x="412" y="190" class="f s13 mu end lab-top"><tspan class="m">unset</tspan> · 꺼짐</text>
+  <text x="412" y="302" class="f s13 mu end lab-bot"><tspan class="m">=1</tspan> · 켜짐</text>
+  <text x="244" y="328" class="f s13 mu"><tspan class="m">flag.ts</tspan> · 개발 모드 전용</text>
+
+  <!-- input wire: Next.js (lib/supabase/*) → pivot -->
+  <path d="M200 322H216V240H272" class="wire"/>
+  <!-- output wires: contacts → backends -->
+  <path d="M396 200H449" class="wire"/>
+  <path d="M449 196L456 200L449 204Z" class="head"/>
+  <path d="M396 280H449" class="wire"/>
+  <path d="M449 276L456 280L449 284Z" class="head"/>
+  <!-- lit output wires -->
+  <path d="M396 200H452" class="hl-line on-top" stroke="#3ecf8e"/>
+  <path d="M396 280H452" class="hl-line on-bot" stroke="#ffcb4c"/>
+
+  <!-- contacts -->
+  <circle cx="392" cy="200" r="4" fill="#16181d" stroke="#9aa1ad" stroke-width="1.5"/>
+  <circle cx="392" cy="280" r="4" fill="#16181d" stroke="#9aa1ad" stroke-width="1.5"/>
+  <circle cx="392" cy="200" r="4" fill="#3ecf8e" class="on-top"/>
+  <circle cx="392" cy="280" r="4" fill="#ffcb4c" class="on-bot" opacity="0"/>
+
+  <!-- lever (static: pointing to the real backend) -->
+  <g transform="translate(272 240)">
+    <g class="lever" transform="rotate(-18.435)">
+      <line x1="0" y1="0" x2="120.5" y2="0" stroke="#e8eaee" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </g>
+  <circle cx="272" cy="240" r="6" fill="#272b33" stroke="#e8eaee" stroke-width="2"/>
+
+  <!-- ===================== real backend ===================== -->
+  <rect x="456" y="104" width="480" height="128" rx="12" class="panel"/>
+  <rect x="456" y="104" width="480" height="128" rx="12" class="hl hl-g soft on-real"/>
+  <g class="ico" stroke="#3ecf8e">
+    <ellipse cx="480" cy="117" rx="8" ry="3"/>
+    <path d="M472 117v12c0 1.7 3.6 3 8 3s8-1.3 8-3v-12M472 123c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
+  </g>
+  <text x="496" y="130" class="f s16 b tx">실제 백엔드<tspan class="s13 mu" font-weight="400" dx="8">Real backend</tspan></text>
+  <text x="920" y="130" class="m s13 end"><tspan class="gr">npm run dev</tspan><tspan class="mu"> · build · start</tspan></text>
+
+  <!-- Supabase -->
+  <rect x="472" y="144" width="336" height="72" rx="10" class="raised"/>
+  <text x="488" y="164" class="f s13 b tx">Supabase</text>
+  <text x="792" y="164" class="f s13 mu end">로컬 Docker 또는 클라우드</text>
+  <rect x="488" y="176" width="64" height="28" rx="8" class="panel"/>
+  <rect x="488" y="176" width="64" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:1.9s"/>
+  <text x="520" y="195" class="f s13 tx mid">Auth</text>
+  <rect x="560" y="176" width="128" height="28" rx="8" class="panel"/>
+  <rect x="560" y="176" width="128" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:2.5s"/>
+  <text x="624" y="195" class="f s13 tx mid">Postgres + RLS</text>
+  <rect x="696" y="176" width="88" height="28" rx="8" class="panel"/>
+  <rect x="696" y="176" width="88" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:3.1s"/>
+  <text x="740" y="195" class="f s13 tx mid">Storage</text>
+
+  <!-- SMTP -->
+  <rect x="824" y="144" width="96" height="72" rx="10" class="raised"/>
+  <text x="840" y="164" class="f s13 b tx">SMTP</text>
+  <rect x="836" y="176" width="72" height="28" rx="8" class="panel"/>
+  <rect x="836" y="176" width="72" height="28" rx="8" class="hl hl-g pulse" style="animation-delay:3.7s"/>
+  <text x="872" y="195" class="f s13 tx mid">메일 발송</text>
+
+  <!-- ===================== mock backend (src/lib/preview) ===================== -->
+  <rect x="456" y="248" width="480" height="184" rx="12" class="panel"/>
+  <rect x="456" y="248" width="480" height="184" rx="12" class="hl hl-y soft on-mock"/>
+  <g class="ico" stroke="#ffcb4c">
+    <rect x="474" y="262" width="12" height="12" rx="2"/>
+    <path d="M478 259v3M482 259v3M478 274v3M482 274v3M471 266h3M471 270h3M486 266h3M486 270h3"/>
+  </g>
+  <text x="496" y="274" class="f s16 b tx">가짜 백엔드<tspan class="s13 mu" font-weight="400" dx="8">In-memory mock</tspan></text>
+  <text x="920" y="274" class="m s13 end"><tspan class="gd">npm run dev:preview</tspan><tspan class="mu"> · :3100</tspan></text>
+  <text x="472" y="296" class="f s13 mu"><tspan class="m">supabase-js</tspan> 와 같은 응답 모양 · RLS 는 흉내 내지 않음</text>
+
+  <!-- engine pipeline: schema → db → select/filters → rpc -->
+  <rect x="472" y="308" width="100" height="48" rx="8" class="raised"/>
+  <rect x="472" y="308" width="100" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:7.9s"/>
+  <text x="522" y="328" class="m s13 tx mid">schema.ts</text>
+  <text x="522" y="346" class="f s13 mu mid">마이그레이션</text>
+
+  <rect x="588" y="308" width="100" height="48" rx="8" class="raised"/>
+  <rect x="588" y="308" width="100" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:8.4s"/>
+  <text x="638" y="328" class="m s13 tx mid">db.ts</text>
+  <text x="638" y="346" class="f s13 mu mid">제약·기본값</text>
+
+  <rect x="704" y="308" width="100" height="48" rx="8" class="raised"/>
+  <rect x="704" y="308" width="100" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:8.9s"/>
+  <text x="754" y="328" class="m s13 tx mid">select.ts</text>
+  <text x="754" y="346" class="f s13 mu mid">PostgREST식</text>
+
+  <rect x="820" y="308" width="100" height="48" rx="8" class="raised"/>
+  <rect x="820" y="308" width="100" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:9.4s"/>
+  <text x="870" y="328" class="m s13 tx mid">rpc/*.ts</text>
+  <text x="870" y="346" class="f s13 mu mid">SQL 함수 대응</text>
+
+  <!-- small arrows between engine steps -->
+  <path d="M574 332H583M690 332H699M806 332H815" class="wire"/>
+  <path d="M582 329L588 332L582 335ZM698 329L704 332L698 335ZM814 329L820 332L814 335Z" class="head"/>
+
+  <!-- platform mocks -->
+  <rect x="472" y="368" width="96" height="48" rx="8" class="raised"/>
+  <rect x="472" y="368" width="96" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:9.9s"/>
+  <text x="520" y="388" class="m s13 tx mid">auth.ts</text>
+  <text x="520" y="406" class="f s13 mu mid">아무 ID·PW</text>
+
+  <rect x="576" y="368" width="96" height="48" rx="8" class="raised"/>
+  <rect x="576" y="368" width="96" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:10.05s"/>
+  <text x="624" y="388" class="m s13 tx mid">storage.ts</text>
+  <text x="624" y="406" class="f s13 mu mid">메모리 버킷</text>
+
+  <rect x="680" y="368" width="120" height="48" rx="8" class="raised"/>
+  <rect x="680" y="368" width="120" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:10.2s"/>
+  <text x="740" y="388" class="m s13 tx mid">seed.ts</text>
+  <text x="740" y="406" class="f s13 mu mid">데모 + 샘플 PDF</text>
+
+  <rect x="808" y="368" width="112" height="48" rx="8" class="raised"/>
+  <rect x="808" y="368" width="112" height="48" rx="8" class="hl hl-y pulse" style="animation-delay:10.35s"/>
+  <text x="864" y="388" class="m s13 tx mid">/dev/mailbox</text>
+  <text x="864" y="406" class="f s13 mu mid">메일은 기록만</text>
+
+  <!-- ===================== guard band ===================== -->
+  <!-- left: preview-only buttons (only rendered in preview mode) -->
+  <rect x="24" y="456" width="512" height="128" rx="12" class="panel"/>
+  <rect x="24" y="456" width="512" height="128" rx="12" class="hl hl-y soft on-ui"/>
+  <rect x="40" y="469" width="16" height="14" rx="3" class="ico" stroke="#ffcb4c" stroke-dasharray="3 2.5" stroke-width="1.5"/>
+  <text x="64" y="481" class="f s15 b tx">미리보기에서만 보이는 버튼<tspan class="s13 mu" font-weight="400" dx="8">Preview-only UI</tspan></text>
+
+  <text x="40" y="517" class="f s13 mu">요청자</text>
+  <rect x="88" y="496" width="122" height="32" rx="8" class="dash"/>
+  <rect x="88" y="496" width="122" height="32" rx="8" class="hl hl-y pulse" style="animation-delay:10.7s"/>
+  <text x="149" y="517" class="f s13 tx mid">서명자 화면 열기</text>
+  <rect x="218" y="496" width="250" height="32" rx="8" class="dash"/>
+  <rect x="218" y="496" width="250" height="32" rx="8" class="hl hl-y pulse" style="animation-delay:10.85s"/>
+  <text x="343" y="517" class="f s13 tx mid">모든 서명자 서명 완료 처리 (미리보기)</text>
+
+  <text x="40" y="561" class="f s13 mu">서명자</text>
+  <rect x="88" y="540" width="202" height="32" rx="8" class="dash"/>
+  <rect x="88" y="540" width="202" height="32" rx="8" class="hl hl-y pulse" style="animation-delay:11s"/>
+  <text x="189" y="561" class="f s13 tx mid">본인 확인 건너뛰기 (미리보기)</text>
+  <rect x="298" y="540" width="146" height="32" rx="8" class="dash"/>
+  <rect x="298" y="540" width="146" height="32" rx="8" class="hl hl-y pulse" style="animation-delay:11.15s"/>
+  <text x="371" y="561" class="f s13 tx mid">자동 입력 (미리보기)</text>
+
+  <!-- right: what guarantees it outside preview -->
+  <rect x="552" y="456" width="384" height="128" rx="12" class="panel"/>
+  <rect x="552" y="456" width="384" height="128" rx="12" class="hl hl-v soft on-guard"/>
+  <path d="M576 467l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z" class="ico" stroke="#a78bfa"/>
+  <text x="592" y="481" class="f s15 b tx">미리보기 밖에서는<tspan class="s13 mu" font-weight="400" dx="8">Outside preview</tspan></text>
+
+  <rect x="560" y="490" width="368" height="26" rx="6" class="hl hl-v pulse" style="animation-delay:4.3s"/>
+  <path d="M569 500h12l-3-3M581 507h-12l3 3" class="ico" stroke="#a78bfa"/>
+  <text x="592" y="508" class="f s13 tx"><tspan class="m vi">resolveAlias</tspan> 미리보기 UI·클라이언트 → 빈 모듈</text>
+
+  <rect x="560" y="518" width="368" height="26" rx="6" class="hl hl-v pulse" style="animation-delay:4.7s"/>
+  <g class="ico" stroke="#ff6b6b"><circle cx="575" cy="531" r="6"/><path d="M570.8 526.8l8.4 8.4"/></g>
+  <text x="592" y="536" class="f s13 tx"><tspan class="m vi">/api/preview/*</tspan> → <tspan class="b rd">404</tspan><tspan class="m mu"> proxy.ts · route.ts</tspan></text>
+
+  <rect x="560" y="546" width="368" height="26" rx="6" class="hl hl-v pulse" style="animation-delay:5.1s"/>
+  <g class="ico" stroke="#a78bfa"><rect x="569" y="558" width="12" height="9" rx="2"/><path d="M571.5 558v-2.5a3.5 3.5 0 0 1 7 0v2.5"/></g>
+  <text x="592" y="564" class="f s13 tx"><tspan class="m vi">NODE_ENV=production</tspan> → <tspan class="m">PREVIEW=false</tspan></text>
+
+  <!-- ===================== packets (hidden in the static diagram) ===================== -->
+  <!-- real half -->
+  <g filter="url(#glow)">
+    <circle r="2"   class="pk pk-a tr2" fill="#5991f4" style="animation-delay:0.36s"/>
+    <circle r="2.5" class="pk pk-a tr1" fill="#5991f4" style="animation-delay:0.33s"/>
+    <circle r="3"   class="pk pk-a"     fill="#5991f4" style="animation-delay:.3s"/>
+    <circle r="2"   class="pk pk-r tr2" fill="#3ecf8e" style="animation-delay:0.96s"/>
+    <circle r="2.5" class="pk pk-r tr1" fill="#3ecf8e" style="animation-delay:0.93s"/>
+    <circle r="3"   class="pk pk-r"     fill="#3ecf8e" style="animation-delay:.9s"/>
+    <!-- preview half -->
+    <circle r="2"   class="pk pk-a tr2" fill="#5991f4" style="animation-delay:6.36s"/>
+    <circle r="2.5" class="pk pk-a tr1" fill="#5991f4" style="animation-delay:6.33s"/>
+    <circle r="3"   class="pk pk-a"     fill="#5991f4" style="animation-delay:6.3s"/>
+    <circle r="2"   class="pk pk-p tr2" fill="#ffcb4c" style="animation-delay:6.96s"/>
+    <circle r="2.5" class="pk pk-p tr1" fill="#ffcb4c" style="animation-delay:6.93s"/>
+    <circle r="3"   class="pk pk-p"     fill="#ffcb4c" style="animation-delay:6.9s"/>
+  </g>
+</svg>

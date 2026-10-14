@@ -1,0 +1,251 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="616" viewBox="0 0 960 616" role="img" aria-labelledby="t d">
+<!-- OpenSign architecture motion graphic. Generated layout; one 16s CSS loop (no SMIL, no scripts).
+     Static state = full diagram; animation only adds highlights and travelling packets.
+     Timeline: step1 0.30–1.38s, step2 1.68–4.56s, step3 4.86–7.00s, step4 7.30–9.88s, step5 10.18–14.75s -->
+<title id="t">OpenSign 구조 · Architecture</title>
+<desc id="d">OpenSign 시스템 구조. 직원은 브라우저에서 아이디와 비밀번호로 로그인하고, 외부 서명자는 로그인 없이 메일 링크(/sign/[token], /link/[token])로 접속한다. 모든 요청은 Next.js 16 앱의 src/proxy.ts(세션 갱신, 로그인 가드)를 거쳐 Server Components 페이지와 서버 액션·라우트 핸들러로 간다. 페이지와 액션은 사용자 세션에 묶인 RLS 클라이언트(lib/supabase/server.ts)로 Supabase Postgres를 조회하고, 서명자 토큰 흐름·발송·완료 문서 저장·메일 기록은 service role 관리자 클라이언트(lib/supabase/admin.ts)를 쓴다. lib/server/send.ts가 서명 요청을 보내고, lib/pdf/finalize.ts가 완료 PDF와 감사 추적 인증서, SHA-256 해시를 만들어 Storage(비공개 documents 버킷)에 저장하며, lib/email이 SMTP로 메일을 보내고 outbound_emails에 기록한다. 브라우저는 PDF를 Storage에 직접 업로드한다(워크스페이스 RLS). 애니메이션은 로그인, 화면 조회, PDF 업로드, 서명 요청 전송, 서명 완료의 다섯 흐름을 차례로 보여 준다.</desc>
+<style><![CDATA[
+text{font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","Segoe UI",system-ui,sans-serif;fill:#e8eaee}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.t22{font-size:22px;font-weight:700}
+.t16{font-size:16px;font-weight:700}
+.t15{font-size:15px;font-weight:700}
+.t14{font-size:14px}
+.t13{font-size:13px}
+.mut{fill:#9aa1ad}
+.b{font-weight:700}
+.sb{font-weight:600}
+.edge{fill:none;stroke:#9aa1ad;stroke-opacity:.5;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.lane{stroke:#5991f4;stroke-opacity:.6;stroke-dasharray:4 4}
+.ov{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.hl{opacity:0}
+.pk{opacity:0;offset-rotate:0deg;animation-duration:16s;animation-iteration-count:infinite;animation-timing-function:ease-in-out}
+.anim{animation-duration:16s;animation-iteration-count:infinite;animation-timing-function:ease-in-out}
+@media (prefers-reduced-motion:reduce){*{animation:none !important}}
+@keyframes s-1{0%{opacity:0}0.31%{opacity:0}1.88%,8%{opacity:1}10.5%{opacity:0}100%{opacity:0}}
+@keyframes s-2{0%{opacity:0}8.94%{opacity:0}10.5%,27.88%{opacity:1}30.38%{opacity:0}100%{opacity:0}}
+@keyframes s-3{0%{opacity:0}28.81%{opacity:0}30.38%,43.12%{opacity:1}45.62%{opacity:0}100%{opacity:0}}
+@keyframes s-4{0%{opacity:0}44.05%{opacity:0}45.62%,61.12%{opacity:1}63.62%{opacity:0}100%{opacity:0}}
+@keyframes s-5{0%{opacity:0}62.05%{opacity:0}63.62%,91.54%{opacity:1}94.04%{opacity:0}100%{opacity:0}}
+@keyframes n-emp{0%{opacity:0}1.13%{opacity:0}1.88%,2.88%{opacity:1}5.69%{opacity:0}9.75%{opacity:0}10.5%,11.5%{opacity:1}14.31%{opacity:0}25.13%{opacity:0}25.88%,31.38%{opacity:1}34.19%{opacity:0}44.87%{opacity:0}45.62%,46.62%{opacity:1}49.43%{opacity:0}100%{opacity:0}}
+@keyframes n-signer{0%{opacity:0}58.37%{opacity:0}59.12%,64.62%{opacity:1}67.43%{opacity:0}88.79%{opacity:0}89.54%,91.79%{opacity:1}94.61%{opacity:0}100%{opacity:0}}
+@keyframes n-mail{0%{opacity:0}56.49%{opacity:0}57.24%,57.87%{opacity:1}60.68%{opacity:0}86.92%{opacity:0}87.67%,88.29%{opacity:1}91.11%{opacity:0}100%{opacity:0}}
+@keyframes n-proxy{0%{opacity:0}3.37%{opacity:0}4.12%,4.75%{opacity:1}7.56%{opacity:0}12%{opacity:0}12.75%,13.38%{opacity:1}16.19%{opacity:0}23.25%{opacity:0}24%,24.63%{opacity:1}27.44%{opacity:0}47.12%{opacity:0}47.87%,48.49%{opacity:1}51.3%{opacity:0}65.92%{opacity:0}66.67%,67.29%{opacity:1}70.11%{opacity:0}100%{opacity:0}}
+@keyframes n-pages{0%{opacity:0}13.88%{opacity:0}14.63%,15.25%{opacity:1}18.06%{opacity:0}21.38%{opacity:0}22.13%,22.75%{opacity:1}25.56%{opacity:0}48.99%{opacity:0}49.74%,50.37%{opacity:1}53.18%{opacity:0}67.79%{opacity:0}68.54%,69.17%{opacity:1}71.98%{opacity:0}100%{opacity:0}}
+@keyframes n-actions{0%{opacity:0}50.87%{opacity:0}51.62%,52.24%{opacity:1}55.05%{opacity:0}69.67%{opacity:0}70.42%,71.04%{opacity:1}73.86%{opacity:0}100%{opacity:0}}
+@keyframes n-send{0%{opacity:0}52.74%{opacity:0}53.49%,54.12%{opacity:1}56.93%{opacity:0}100%{opacity:0}}
+@keyframes n-email{0%{opacity:0}54.62%{opacity:0}55.37%,55.99%{opacity:1}58.8%{opacity:0}85.04%{opacity:0}85.79%,86.42%{opacity:1}89.23%{opacity:0}100%{opacity:0}}
+@keyframes n-fin{0%{opacity:0}76.04%{opacity:0}76.79%,77.79%{opacity:1}80.61%{opacity:0}82.79%{opacity:0}83.54%,84.54%{opacity:1}87.36%{opacity:0}100%{opacity:0}}
+@keyframes n-rls{0%{opacity:0}15.75%{opacity:0}16.5%,20.88%{opacity:1}23.69%{opacity:0}100%{opacity:0}}
+@keyframes n-admin{0%{opacity:0}71.54%{opacity:0}72.29%,72.92%{opacity:1}75.73%{opacity:0}78.29%{opacity:0}79.04%,79.67%{opacity:1}82.48%{opacity:0}100%{opacity:0}}
+@keyframes n-auth{0%{opacity:0}5.25%{opacity:0}6%,8.25%{opacity:1}11.06%{opacity:0}100%{opacity:0}}
+@keyframes n-pg{0%{opacity:0}17.63%{opacity:0}18.38%,19%{opacity:1}21.81%{opacity:0}73.42%{opacity:0}74.17%,76.42%{opacity:1}79.23%{opacity:0}100%{opacity:0}}
+@keyframes n-storage{0%{opacity:0}40.37%{opacity:0}41.12%,43.37%{opacity:1}46.18%{opacity:0}80.17%{opacity:0}80.92%,83.17%{opacity:1}85.98%{opacity:0}100%{opacity:0}}
+@keyframes e1{0%{opacity:0}2.37%{opacity:0}2.88%,4.12%{opacity:1}6.31%{opacity:0}11%{opacity:0}11.5%,12.75%{opacity:1}14.94%{opacity:0}46.12%{opacity:0}46.62%,47.87%{opacity:1}50.05%{opacity:0}100%{opacity:0}}
+@keyframes e2{0%{opacity:0}4.25%{opacity:0}4.75%,6%{opacity:1}8.19%{opacity:0}100%{opacity:0}}
+@keyframes e3{0%{opacity:0}12.88%{opacity:0}13.38%,14.63%{opacity:1}16.81%{opacity:0}47.99%{opacity:0}48.49%,49.74%{opacity:1}51.93%{opacity:0}66.79%{opacity:0}67.29%,68.54%{opacity:1}70.73%{opacity:0}100%{opacity:0}}
+@keyframes e4{0%{opacity:0}14.75%{opacity:0}15.25%,16.5%{opacity:1}18.69%{opacity:0}100%{opacity:0}}
+@keyframes e5{0%{opacity:0}16.63%{opacity:0}17.13%,18.38%{opacity:1}20.56%{opacity:0}100%{opacity:0}}
+@keyframes e6{0%{opacity:0}18.5%{opacity:0}19%,20.25%{opacity:1}22.44%{opacity:0}100%{opacity:0}}
+@keyframes e7{0%{opacity:0}20.38%{opacity:0}20.88%,22.13%{opacity:1}24.31%{opacity:0}100%{opacity:0}}
+@keyframes e8{0%{opacity:0}22.25%{opacity:0}22.75%,24%{opacity:1}26.19%{opacity:0}100%{opacity:0}}
+@keyframes e9{0%{opacity:0}24.13%{opacity:0}24.63%,25.88%{opacity:1}28.06%{opacity:0}100%{opacity:0}}
+@keyframes e10{0%{opacity:0}30.88%{opacity:0}31.38%,41.12%{opacity:1}43.3%{opacity:0}100%{opacity:0}}
+@keyframes e11{0%{opacity:0}49.87%{opacity:0}50.37%,51.62%{opacity:1}53.8%{opacity:0}68.67%{opacity:0}69.17%,70.42%{opacity:1}72.61%{opacity:0}100%{opacity:0}}
+@keyframes e12{0%{opacity:0}51.74%{opacity:0}52.24%,53.49%{opacity:1}55.68%{opacity:0}100%{opacity:0}}
+@keyframes e13{0%{opacity:0}53.62%{opacity:0}54.12%,55.37%{opacity:1}57.55%{opacity:0}100%{opacity:0}}
+@keyframes e14{0%{opacity:0}55.49%{opacity:0}55.99%,57.24%{opacity:1}59.43%{opacity:0}100%{opacity:0}}
+@keyframes e15{0%{opacity:0}57.37%{opacity:0}57.87%,59.12%{opacity:1}61.3%{opacity:0}100%{opacity:0}}
+@keyframes e16{0%{opacity:0}64.12%{opacity:0}64.62%,66.67%{opacity:1}68.86%{opacity:0}100%{opacity:0}}
+@keyframes e17{0%{opacity:0}70.54%{opacity:0}71.04%,72.29%{opacity:1}74.48%{opacity:0}100%{opacity:0}}
+@keyframes e18{0%{opacity:0}72.42%{opacity:0}72.92%,74.17%{opacity:1}76.36%{opacity:0}100%{opacity:0}}
+@keyframes e19{0%{opacity:0}77.29%{opacity:0}77.79%,79.04%{opacity:1}81.23%{opacity:0}100%{opacity:0}}
+@keyframes e20{0%{opacity:0}79.17%{opacity:0}79.67%,80.92%{opacity:1}83.11%{opacity:0}100%{opacity:0}}
+@keyframes e21{0%{opacity:0}84.04%{opacity:0}84.54%,85.79%{opacity:1}87.98%{opacity:0}100%{opacity:0}}
+@keyframes e22{0%{opacity:0}85.92%{opacity:0}86.42%,87.67%{opacity:1}89.86%{opacity:0}100%{opacity:0}}
+@keyframes e23{0%{opacity:0}87.79%{opacity:0}88.29%,89.54%{opacity:1}91.73%{opacity:0}100%{opacity:0}}
+.p1{offset-path:path("M168 160 L208 160");animation-name:p1}
+@keyframes p1{0%,2.75%{opacity:0;offset-distance:0%}2.88%{opacity:1;offset-distance:0%}4.12%{opacity:1;offset-distance:100%}4.62%,100%{opacity:0;offset-distance:100%}}
+.p2{offset-path:path("M688 170 L748 170");animation-name:p2}
+@keyframes p2{0%,4.62%{opacity:0;offset-distance:0%}4.75%{opacity:1;offset-distance:0%}6%{opacity:1;offset-distance:100%}6.5%,100%{opacity:0;offset-distance:100%}}
+.p3{offset-path:path("M168 160 L208 160");animation-name:p3}
+@keyframes p3{0%,11.37%{opacity:0;offset-distance:0%}11.5%{opacity:1;offset-distance:0%}12.75%{opacity:1;offset-distance:100%}13.25%,100%{opacity:0;offset-distance:100%}}
+.p4{offset-path:path("M336 200 L336 216");animation-name:p4}
+@keyframes p4{0%,13.25%{opacity:0;offset-distance:0%}13.38%{opacity:1;offset-distance:0%}14.63%{opacity:1;offset-distance:100%}15.13%,100%{opacity:0;offset-distance:100%}}
+.p5{offset-path:path("M464 242 L488 242");animation-name:p5}
+@keyframes p5{0%,15.13%{opacity:0;offset-distance:0%}15.25%{opacity:1;offset-distance:0%}16.5%{opacity:1;offset-distance:100%}17%,100%{opacity:0;offset-distance:100%}}
+.p6{offset-path:path("M688 260 L748 260");animation-name:p6}
+@keyframes p6{0%,17%{opacity:0;offset-distance:0%}17.13%{opacity:1;offset-distance:0%}18.38%{opacity:1;offset-distance:100%}18.88%,100%{opacity:0;offset-distance:100%}}
+.p7{offset-path:path("M688 260 L748 260");animation-name:p7}
+@keyframes p7{0%,18.88%{opacity:0;offset-distance:100%}19%{opacity:1;offset-distance:100%}20.25%{opacity:1;offset-distance:0%}20.75%,100%{opacity:0;offset-distance:0%}}
+.p8{offset-path:path("M464 242 L488 242");animation-name:p8}
+@keyframes p8{0%,20.75%{opacity:0;offset-distance:100%}20.88%{opacity:1;offset-distance:100%}22.13%{opacity:1;offset-distance:0%}22.63%,100%{opacity:0;offset-distance:0%}}
+.p9{offset-path:path("M336 200 L336 216");animation-name:p9}
+@keyframes p9{0%,22.63%{opacity:0;offset-distance:100%}22.75%{opacity:1;offset-distance:100%}24%{opacity:1;offset-distance:0%}24.5%,100%{opacity:0;offset-distance:0%}}
+.p10{offset-path:path("M168 160 L208 160");animation-name:p10}
+@keyframes p10{0%,24.5%{opacity:0;offset-distance:100%}24.63%{opacity:1;offset-distance:100%}25.88%{opacity:1;offset-distance:0%}26.38%,100%{opacity:0;offset-distance:0%}}
+.p11{offset-path:path("M96 104 L96 94 Q96 84 106 84 L908 84 Q920 84 920 96 L920 478 Q920 490 908 490 L892 490");animation-name:p11}
+@keyframes p11{0%,31.25%{opacity:0;offset-distance:0%}31.38%{opacity:1;offset-distance:0%}41.12%{opacity:1;offset-distance:100%}41.62%,100%{opacity:0;offset-distance:100%}}
+.p12{offset-path:path("M168 160 L208 160");animation-name:p12}
+@keyframes p12{0%,46.49%{opacity:0;offset-distance:0%}46.62%{opacity:1;offset-distance:0%}47.87%{opacity:1;offset-distance:100%}48.37%,100%{opacity:0;offset-distance:100%}}
+.p13{offset-path:path("M336 200 L336 216");animation-name:p13}
+@keyframes p13{0%,48.37%{opacity:0;offset-distance:0%}48.49%{opacity:1;offset-distance:0%}49.74%{opacity:1;offset-distance:100%}50.24%,100%{opacity:0;offset-distance:100%}}
+.p14{offset-path:path("M336 268 L336 284");animation-name:p14}
+@keyframes p14{0%,50.24%{opacity:0;offset-distance:0%}50.37%{opacity:1;offset-distance:0%}51.62%{opacity:1;offset-distance:100%}52.12%,100%{opacity:0;offset-distance:100%}}
+.p15{offset-path:path("M336 348 L336 364");animation-name:p15}
+@keyframes p15{0%,52.12%{opacity:0;offset-distance:0%}52.24%{opacity:1;offset-distance:0%}53.49%{opacity:1;offset-distance:100%}53.99%,100%{opacity:0;offset-distance:100%}}
+.p16{offset-path:path("M336 408 L336 424");animation-name:p16}
+@keyframes p16{0%,53.99%{opacity:0;offset-distance:0%}54.12%{opacity:1;offset-distance:0%}55.37%{opacity:1;offset-distance:100%}55.87%,100%{opacity:0;offset-distance:100%}}
+.p17{offset-path:path("M208 446 L168 446");animation-name:p17}
+@keyframes p17{0%,55.87%{opacity:0;offset-distance:0%}55.99%{opacity:1;offset-distance:0%}57.24%{opacity:1;offset-distance:100%}57.74%,100%{opacity:0;offset-distance:100%}}
+.p18{offset-path:path("M96 408 L96 392");animation-name:p18}
+@keyframes p18{0%,57.74%{opacity:0;offset-distance:0%}57.87%{opacity:1;offset-distance:0%}59.12%{opacity:1;offset-distance:100%}59.62%,100%{opacity:0;offset-distance:100%}}
+.p19{offset-path:path("M168 280 L174 280 Q180 280 180 274 L180 188 Q180 182 186 182 L208 182");animation-name:p19}
+@keyframes p19{0%,64.49%{opacity:0;offset-distance:0%}64.62%{opacity:1;offset-distance:0%}66.67%{opacity:1;offset-distance:100%}67.17%,100%{opacity:0;offset-distance:100%}}
+.p20{offset-path:path("M336 200 L336 216");animation-name:p20}
+@keyframes p20{0%,67.17%{opacity:0;offset-distance:0%}67.29%{opacity:1;offset-distance:0%}68.54%{opacity:1;offset-distance:100%}69.04%,100%{opacity:0;offset-distance:100%}}
+.p21{offset-path:path("M336 268 L336 284");animation-name:p21}
+@keyframes p21{0%,69.04%{opacity:0;offset-distance:0%}69.17%{opacity:1;offset-distance:0%}70.42%{opacity:1;offset-distance:100%}70.92%,100%{opacity:0;offset-distance:100%}}
+.p22{offset-path:path("M464 336 L488 336");animation-name:p22}
+@keyframes p22{0%,70.92%{opacity:0;offset-distance:0%}71.04%{opacity:1;offset-distance:0%}72.29%{opacity:1;offset-distance:100%}72.79%,100%{opacity:0;offset-distance:100%}}
+.p23{offset-path:path("M688 380 L748 380");animation-name:p23}
+@keyframes p23{0%,72.79%{opacity:0;offset-distance:0%}72.92%{opacity:1;offset-distance:0%}74.17%{opacity:1;offset-distance:100%}74.67%,100%{opacity:0;offset-distance:100%}}
+.p24{offset-path:path("M464 506 L488 506");animation-name:p24}
+@keyframes p24{0%,77.67%{opacity:0;offset-distance:0%}77.79%{opacity:1;offset-distance:0%}79.04%{opacity:1;offset-distance:100%}79.54%,100%{opacity:0;offset-distance:100%}}
+.p25{offset-path:path("M688 490 L748 490");animation-name:p25}
+@keyframes p25{0%,79.54%{opacity:0;offset-distance:0%}79.67%{opacity:1;offset-distance:0%}80.92%{opacity:1;offset-distance:100%}81.42%,100%{opacity:0;offset-distance:100%}}
+.p26{offset-path:path("M420 484 L420 468");animation-name:p26}
+@keyframes p26{0%,84.42%{opacity:0;offset-distance:0%}84.54%{opacity:1;offset-distance:0%}85.79%{opacity:1;offset-distance:100%}86.29%,100%{opacity:0;offset-distance:100%}}
+.p27{offset-path:path("M208 446 L168 446");animation-name:p27}
+@keyframes p27{0%,86.29%{opacity:0;offset-distance:0%}86.42%{opacity:1;offset-distance:0%}87.67%{opacity:1;offset-distance:100%}88.17%,100%{opacity:0;offset-distance:100%}}
+.p28{offset-path:path("M96 408 L96 392");animation-name:p28}
+@keyframes p28{0%,88.17%{opacity:0;offset-distance:0%}88.29%{opacity:1;offset-distance:0%}89.54%{opacity:1;offset-distance:100%}90.04%,100%{opacity:0;offset-distance:100%}}]]></style>
+<defs><marker id="ah-base" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5 9.5 5 1 8.5z" fill="#9aa1ad" fill-opacity="0.5"/></marker><marker id="ah-gold" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5 9.5 5 1 8.5z" fill="#ffcb4c" fill-opacity="1"/></marker><marker id="ah-blue" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5 9.5 5 1 8.5z" fill="#5991f4" fill-opacity="1"/></marker><marker id="ah-green" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5 9.5 5 1 8.5z" fill="#3ecf8e" fill-opacity="1"/></marker><marker id="ah-violet" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1.5 9.5 5 1 8.5z" fill="#a78bfa" fill-opacity="1"/></marker><radialGradient id="gl-gold"><stop offset="0" stop-color="#ffcb4c" stop-opacity=".7"/><stop offset=".45" stop-color="#ffcb4c" stop-opacity=".25"/><stop offset="1" stop-color="#ffcb4c" stop-opacity="0"/></radialGradient><radialGradient id="gl-blue"><stop offset="0" stop-color="#5991f4" stop-opacity=".7"/><stop offset=".45" stop-color="#5991f4" stop-opacity=".25"/><stop offset="1" stop-color="#5991f4" stop-opacity="0"/></radialGradient><radialGradient id="gl-green"><stop offset="0" stop-color="#3ecf8e" stop-opacity=".7"/><stop offset=".45" stop-color="#3ecf8e" stop-opacity=".25"/><stop offset="1" stop-color="#3ecf8e" stop-opacity="0"/></radialGradient><radialGradient id="gl-violet"><stop offset="0" stop-color="#a78bfa" stop-opacity=".7"/><stop offset=".45" stop-color="#a78bfa" stop-opacity=".25"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></radialGradient></defs>
+<!-- card -->
+<rect x=".5" y=".5" width="959" height="615" rx="18" fill="#16181d" stroke="#2c3038"/>
+<!-- header: OpenSign mark (64-grid, 28px) + title + subtitle -->
+<g transform="translate(24 24) scale(.4375)"><rect width="64" height="64" rx="14" fill="#ffcb4c"/><path d="M15 28A12 12 0 0 1 39 28M25 36A12 12 0 0 0 49 36" fill="none" stroke="#191919" stroke-width="8" stroke-linecap="round"/></g>
+<text x="64" y="45" class="t22">OpenSign 구조 · Architecture</text>
+<text x="64" y="67" class="t14 mut">브라우저 · Next.js 앱 · Supabase 한눈에 — 다섯 가지 흐름</text>
+<!-- colour key -->
+<g><circle cx="589" cy="40" r="4" fill="#5991f4"/><text x="598" y="45" class="t13 mut">브라우저</text><circle cx="667" cy="40" r="4" fill="#3ecf8e"/><text x="676" y="45" class="t13 mut">Supabase</text><circle cx="755" cy="40" r="4" fill="#a78bfa"/><text x="764" y="45" class="t13 mut">service role</text><circle cx="853" cy="40" r="4" fill="#ffcb4c"/><text x="862" y="45" class="t13 mut">진행 중 단계</text></g>
+<!-- containers -->
+<rect x="192" y="104" width="512" height="440" rx="14" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/>
+<text x="208" y="130" class="t16">Next.js 16 앱</text>
+<text x="688" y="130" class="t13 mut" text-anchor="end">App Router · React 19 · TypeScript</text>
+<rect x="736" y="104" width="168" height="440" rx="14" fill="#1f2229" stroke="#3ecf8e" stroke-opacity=".45" stroke-width="1.5"/>
+<text x="748" y="130" class="t16" style="fill:#3ecf8e">Supabase</text>
+<!-- edges (static) -->
+<path id="E1" class="edge" d="M168 160 L208 160" marker-end="url(#ah-base)"/>
+<path id="E2" class="edge" d="M168 280 L174 280 Q180 280 180 274 L180 188 Q180 182 186 182 L208 182" marker-end="url(#ah-base)"/>
+<path id="E3" class="edge" d="M336 200 L336 216" marker-end="url(#ah-base)"/>
+<path id="E4" class="edge" d="M336 268 L336 284" marker-end="url(#ah-base)"/>
+<path id="E5" class="edge" d="M336 348 L336 364" marker-end="url(#ah-base)"/>
+<path id="E6" class="edge" d="M336 408 L336 424" marker-end="url(#ah-base)"/>
+<path id="E7" class="edge" d="M420 484 L420 468" marker-end="url(#ah-base)"/>
+<path id="E8" class="edge" d="M464 242 L488 242" marker-end="url(#ah-base)"/>
+<path id="E9" class="edge" d="M464 294 L488 294" marker-end="url(#ah-base)"/>
+<path id="E10" class="edge" d="M464 336 L488 336" marker-end="url(#ah-base)"/>
+<path id="E11" class="edge" d="M464 386 L488 386" marker-end="url(#ah-base)"/>
+<path id="E12" class="edge" d="M464 446 L488 446" marker-end="url(#ah-base)"/>
+<path id="E13" class="edge" d="M464 506 L488 506" marker-end="url(#ah-base)"/>
+<path id="E14" class="edge" d="M688 170 L748 170" marker-end="url(#ah-base)"/>
+<path id="E15" class="edge" d="M688 260 L748 260" marker-end="url(#ah-base)"/>
+<path id="E16" class="edge" d="M688 380 L748 380" marker-end="url(#ah-base)"/>
+<path id="E17" class="edge" d="M688 490 L748 490" marker-end="url(#ah-base)"/>
+<path id="E18" class="edge" d="M208 446 L168 446" marker-end="url(#ah-base)"/>
+<path id="E19" class="edge" d="M96 408 L96 392" marker-end="url(#ah-base)"/>
+<path id="LANE" class="edge lane" d="M96 104 L96 94 Q96 84 106 84 L908 84 Q920 84 920 96 L920 478 Q920 490 908 490 L892 490" marker-end="url(#ah-blue)"/>
+<!-- actors -->
+<g data-node="emp"><rect class="nb" x="24" y="104" width="144" height="128" rx="12" fill="#1f2229" stroke="#5991f4" stroke-opacity="0.6" stroke-width="1.5"/><g transform="translate(86 116) scale(0.83)" fill="none" stroke="#5991f4" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></g><text x="96" y="162" class="t15" text-anchor="middle">직원 (브라우저)</text><text x="96" y="181" class="t13 mut" text-anchor="middle">Employee</text><text x="96" y="207" class="t13" text-anchor="middle">아이디 / 비밀번호</text></g>
+<g data-node="signer"><rect class="nb" x="24" y="248" width="144" height="144" rx="12" fill="#1f2229" stroke="#5991f4" stroke-opacity="0.6" stroke-width="1.5"/><g transform="translate(86 258) scale(0.83)" fill="none" stroke="#5991f4" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></g><text x="96" y="300" class="t15" text-anchor="middle">외부 서명자</text><text x="96" y="318" class="t13 mut" text-anchor="middle">External signer</text><text x="96" y="341" class="t13" text-anchor="middle">로그인 없이 링크로</text><text x="96" y="360" class="t13 mono" text-anchor="middle">/sign/[token]</text><text x="96" y="378" class="t13 mono" text-anchor="middle">/link/[token]</text></g>
+<g data-node="mail"><rect class="nb" x="24" y="408" width="144" height="136" rx="12" fill="#1f2229" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(86 420) scale(0.83)" fill="none" stroke="#ffcb4c" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></g><text x="96" y="462" class="t15" text-anchor="middle">메일 서버</text><text x="96" y="481" class="t13 mut" text-anchor="middle">Mail · SMTP</text><text x="96" y="505" class="t13 mono" text-anchor="middle">outbound_emails</text><text x="96" y="525" class="t13 mono mut" text-anchor="middle">/dev/mailbox</text></g>
+<!-- Next.js app layers -->
+<g data-node="proxy"><rect class="nb" x="208" y="140" width="480" height="60" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(220 151) scale(0.75)" fill="none" stroke="#ffcb4c" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/></g><text x="248" y="165" class="t15 mono sb">src/proxy.ts</text><text x="370" y="165" class="t13 mut">세션 갱신 · 로그인 가드 (middleware 대체)</text><text x="248" y="188" class="t13 mut">공개 경로</text><text x="312" y="188" class="t13 mono">/login · /sign/ · /link/ · /api/sign/</text></g>
+<g data-node="pages"><rect class="nb" x="208" y="216" width="256" height="52" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(220 225) scale(0.67)" fill="none" stroke="#9aa1ad" stroke-width="2.63" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></g><text x="244" y="238" class="t15">페이지 렌더링</text><text x="244" y="257" class="t13 mut">Server Components</text></g>
+<g data-node="actions"><rect class="nb" x="208" y="284" width="256" height="64" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(220 296) scale(0.67)" fill="none" stroke="#9aa1ad" stroke-width="2.63" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></g><text x="244" y="309" class="t15">서버 액션 · 라우트 핸들러</text><text x="244" y="331" class="t13 mono mut">actions.ts · route.ts</text></g>
+<g data-node="send"><rect class="nb" x="208" y="364" width="256" height="44" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><text x="224" y="381" class="t14 mono sb">lib/server/send.ts</text><text x="224" y="399" class="t13 mut">전송 · 예약 발송 · 기한 만료</text></g>
+<g data-node="email"><rect class="nb" x="208" y="424" width="256" height="44" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><text x="224" y="441" class="t14 mono sb">lib/email</text><text x="224" y="459" class="t13 mut">메일 발송(mailer) · 템플릿</text></g>
+<g data-node="fin"><rect class="nb" x="208" y="484" width="256" height="44" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><text x="224" y="501" class="t14 mono sb">lib/pdf/finalize.ts</text><rect x="394" y="490" width="58" height="18" rx="9" fill="#3ecf8e" fill-opacity=".14" stroke="#3ecf8e" stroke-opacity=".6"/><text x="423" y="503.5" class="t13" text-anchor="middle" style="fill:#3ecf8e">SHA-256</text><text x="224" y="519" class="t13 mut">완료 PDF · 감사 추적 인증서</text></g>
+<g data-node="rls"><rect class="nb" x="488" y="216" width="200" height="88" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(500 228) scale(0.75)" fill="none" stroke="#3ecf8e" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></g><text x="526" y="242" class="t15">RLS 클라이언트</text><text x="500" y="266" class="t13 mono">lib/supabase/server.ts</text><text x="500" y="288" class="t13 mut">사용자 세션 · 기본값</text></g>
+<g data-node="admin"><rect class="nb" x="488" y="320" width="200" height="208" rx="12" fill="#a78bfa" fill-opacity=".12" stroke="#a78bfa" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(500 332) scale(0.75)" fill="none" stroke="#a78bfa" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M16 7l3 3M18.5 4.5l2 2"/></g><text x="526" y="346" class="t15">관리자 클라이언트</text><text x="500" y="369" class="t13" style="fill:#a78bfa">service role · RLS 우회</text><text x="500" y="391" class="t13 mono">lib/supabase/admin.ts</text><text x="500" y="422" class="t13 mut">· 토큰 확인된 서명자 흐름</text><text x="500" y="448" class="t13 mut">· 멤버 계정 관리</text><text x="500" y="474" class="t13 mut">· 발송 · 완료 문서 저장</text><text x="500" y="500" class="t13 mut">· 메일 · 감사 이력 기록</text></g>
+<!-- Supabase services -->
+<g data-node="auth"><rect class="nb" x="748" y="140" width="144" height="60" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(760 151) scale(0.75)" fill="none" stroke="#3ecf8e" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></g><text x="786" y="165" class="t15">Auth</text><text x="760" y="188" class="t13 mut">아이디 / 비밀번호</text></g>
+<g data-node="pg"><rect class="nb" x="748" y="216" width="144" height="220" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(760 228) scale(0.75)" fill="none" stroke="#3ecf8e" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></g><text x="786" y="242" class="t15">Postgres</text><text x="760" y="266" class="t13">RLS 정책 · 트리거</text><text x="760" y="292" class="t13 mut">RPC (service role)</text><text x="760" y="311" class="t13 mono">sign_submit</text><text x="760" y="329" class="t13 mono">sign_reject</text><text x="760" y="355" class="t13 mut">테이블</text><text x="760" y="374" class="t13 mono">documents</text><text x="760" y="392" class="t13 mono">participants</text><text x="760" y="410" class="t13 mono">document_events</text></g>
+<g data-node="storage"><rect class="nb" x="748" y="452" width="144" height="76" rx="12" fill="#272b33" stroke="#3a3f49" stroke-opacity="1" stroke-width="1.5"/><g transform="translate(760 463) scale(0.75)" fill="none" stroke="#3ecf8e" stroke-width="2.33" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></g><text x="786" y="477" class="t15">Storage</text><text x="760" y="498" class="t13"><tspan class="mono">documents</tspan> 버킷</text><text x="760" y="517" class="t13 mut">비공개 · 서명 URL</text></g>
+<!-- legend: the five flows -->
+<g data-node="leg1"><rect class="nb" x="24" y="560" width="176" height="32" rx="10" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/><rect class="hl anim" style="animation-name:s-1" x="24" y="560" width="176" height="32" rx="10" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-width="1.5"/><circle cx="44" cy="576" r="9" fill="none" stroke="#ffcb4c" stroke-width="1.5"/><text x="44" y="580.5" class="t13 b" text-anchor="middle" style="fill:#ffcb4c">1</text><text x="62" y="581" class="t13">로그인 · 세션</text></g>
+<g data-node="leg2"><rect class="nb" x="208" y="560" width="176" height="32" rx="10" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/><rect class="hl anim" style="animation-name:s-2" x="208" y="560" width="176" height="32" rx="10" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-width="1.5"/><circle cx="228" cy="576" r="9" fill="none" stroke="#ffcb4c" stroke-width="1.5"/><text x="228" y="580.5" class="t13 b" text-anchor="middle" style="fill:#ffcb4c">2</text><text x="246" y="581" class="t13">화면 조회 (RLS)</text></g>
+<g data-node="leg3"><rect class="nb" x="392" y="560" width="176" height="32" rx="10" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/><rect class="hl anim" style="animation-name:s-3" x="392" y="560" width="176" height="32" rx="10" fill="#5991f4" fill-opacity=".14" stroke="#5991f4" stroke-width="1.5"/><circle cx="412" cy="576" r="9" fill="none" stroke="#5991f4" stroke-width="1.5"/><text x="412" y="580.5" class="t13 b" text-anchor="middle" style="fill:#5991f4">3</text><text x="430" y="581" class="t13">PDF 직접 업로드</text></g>
+<g data-node="leg4"><rect class="nb" x="576" y="560" width="176" height="32" rx="10" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/><rect class="hl anim" style="animation-name:s-4" x="576" y="560" width="176" height="32" rx="10" fill="#ffcb4c" fill-opacity=".14" stroke="#ffcb4c" stroke-width="1.5"/><circle cx="596" cy="576" r="9" fill="none" stroke="#ffcb4c" stroke-width="1.5"/><text x="596" y="580.5" class="t13 b" text-anchor="middle" style="fill:#ffcb4c">4</text><text x="614" y="581" class="t13">서명 요청 메일</text></g>
+<g data-node="leg5"><rect class="nb" x="760" y="560" width="176" height="32" rx="10" fill="#1f2229" stroke="#3a3f49" stroke-width="1.5"/><rect class="hl anim" style="animation-name:s-5" x="760" y="560" width="176" height="32" rx="10" fill="#3ecf8e" fill-opacity=".14" stroke="#3ecf8e" stroke-width="1.5"/><circle cx="780" cy="576" r="9" fill="none" stroke="#3ecf8e" stroke-width="1.5"/><text x="780" y="580.5" class="t13 b" text-anchor="middle" style="fill:#3ecf8e">5</text><text x="798" y="581" class="t13">서명 → 완료 처리</text></g>
+<!-- highlight overlays (opacity 0 unless animated) -->
+<rect class="hl anim" style="animation-name:n-emp" x="24" y="104" width="144" height="128" rx="12" fill="#5991f4" fill-opacity=".16" stroke="#5991f4" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-signer" x="24" y="248" width="144" height="144" rx="12" fill="#5991f4" fill-opacity=".16" stroke="#5991f4" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-mail" x="24" y="408" width="144" height="136" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-proxy" x="208" y="140" width="480" height="60" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-pages" x="208" y="216" width="256" height="52" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-actions" x="208" y="284" width="256" height="64" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-send" x="208" y="364" width="256" height="44" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-email" x="208" y="424" width="256" height="44" rx="12" fill="#ffcb4c" fill-opacity=".16" stroke="#ffcb4c" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-fin" x="208" y="484" width="256" height="44" rx="12" fill="#3ecf8e" fill-opacity=".16" stroke="#3ecf8e" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-rls" x="488" y="216" width="200" height="88" rx="12" fill="#3ecf8e" fill-opacity=".16" stroke="#3ecf8e" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-admin" x="488" y="320" width="200" height="208" rx="12" fill="#a78bfa" fill-opacity=".2" stroke="#a78bfa" stroke-width="2.5"/>
+<rect class="hl anim" style="animation-name:n-auth" x="748" y="140" width="144" height="60" rx="12" fill="#3ecf8e" fill-opacity=".16" stroke="#3ecf8e" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-pg" x="748" y="216" width="144" height="220" rx="12" fill="#3ecf8e" fill-opacity=".16" stroke="#3ecf8e" stroke-width="2"/>
+<rect class="hl anim" style="animation-name:n-storage" x="748" y="452" width="144" height="76" rx="12" fill="#3ecf8e" fill-opacity=".16" stroke="#3ecf8e" stroke-width="2"/>
+<path class="ov anim" style="animation-name:e1" d="M168 160 L208 160" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e2" d="M688 170 L748 170" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e3" d="M336 200 L336 216" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e4" d="M464 242 L488 242" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e5" d="M688 260 L748 260" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e6" d="M688 260 L748 260" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e7" d="M464 242 L488 242" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e8" d="M336 200 L336 216" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e9" d="M168 160 L208 160" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e10" d="M96 104 L96 94 Q96 84 106 84 L908 84 Q920 84 920 96 L920 478 Q920 490 908 490 L892 490" stroke="#5991f4" marker-end="url(#ah-blue)"/>
+<path class="ov anim" style="animation-name:e11" d="M336 268 L336 284" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e12" d="M336 348 L336 364" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e13" d="M336 408 L336 424" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e14" d="M208 446 L168 446" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e15" d="M96 408 L96 392" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e16" d="M168 280 L174 280 Q180 280 180 274 L180 188 Q180 182 186 182 L208 182" stroke="#ffcb4c" marker-end="url(#ah-gold)"/>
+<path class="ov anim" style="animation-name:e17" d="M464 336 L488 336" stroke="#a78bfa" marker-end="url(#ah-violet)"/>
+<path class="ov anim" style="animation-name:e18" d="M688 380 L748 380" stroke="#a78bfa" marker-end="url(#ah-violet)"/>
+<path class="ov anim" style="animation-name:e19" d="M464 506 L488 506" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e20" d="M688 490 L748 490" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e21" d="M420 484 L420 468" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e22" d="M208 446 L168 446" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<path class="ov anim" style="animation-name:e23" d="M96 408 L96 392" stroke="#3ecf8e" marker-end="url(#ah-green)"/>
+<!-- travelling packets (CSS offset-path; drawn at 0,0) -->
+<g class="pk p1" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p1" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p1"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p2" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p2" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p2"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p3" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p3" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p3"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p4" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p4" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p4"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p5" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p5" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p5"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p6" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p6" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p6"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p7" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p7" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p7"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p8" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p8" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p8"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p9" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p9" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p9"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p10" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p10" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p10"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p11" style="animation-delay:.1s"><circle r="2" fill="#5991f4" fill-opacity=".35"/></g><g class="pk p11" style="animation-delay:.05s"><circle r="2.5" fill="#5991f4" fill-opacity=".6"/></g><g class="pk p11"><circle r="10" fill="url(#gl-blue)"/><circle r="3" fill="#5991f4"/></g>
+<g class="pk p12" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p12" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p12"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p13" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p13" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p13"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p14" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p14" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p14"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p15" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p15" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p15"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p16" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p16" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p16"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p17" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p17" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p17"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p18" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p18" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p18"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p19" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p19" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p19"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p20" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p20" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p20"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p21" style="animation-delay:.1s"><circle r="2" fill="#ffcb4c" fill-opacity=".35"/></g><g class="pk p21" style="animation-delay:.05s"><circle r="2.5" fill="#ffcb4c" fill-opacity=".6"/></g><g class="pk p21"><circle r="10" fill="url(#gl-gold)"/><circle r="3" fill="#ffcb4c"/></g>
+<g class="pk p22" style="animation-delay:.1s"><circle r="2" fill="#a78bfa" fill-opacity=".35"/></g><g class="pk p22" style="animation-delay:.05s"><circle r="2.5" fill="#a78bfa" fill-opacity=".6"/></g><g class="pk p22"><circle r="10" fill="url(#gl-violet)"/><circle r="3" fill="#a78bfa"/></g>
+<g class="pk p23" style="animation-delay:.1s"><circle r="2" fill="#a78bfa" fill-opacity=".35"/></g><g class="pk p23" style="animation-delay:.05s"><circle r="2.5" fill="#a78bfa" fill-opacity=".6"/></g><g class="pk p23"><circle r="10" fill="url(#gl-violet)"/><circle r="3" fill="#a78bfa"/></g>
+<g class="pk p24" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p24" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p24"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p25" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p25" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p25"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p26" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p26" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p26"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p27" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p27" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p27"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<g class="pk p28" style="animation-delay:.1s"><circle r="2" fill="#3ecf8e" fill-opacity=".35"/></g><g class="pk p28" style="animation-delay:.05s"><circle r="2.5" fill="#3ecf8e" fill-opacity=".6"/></g><g class="pk p28"><circle r="10" fill="url(#gl-green)"/><circle r="3" fill="#3ecf8e"/></g>
+<!-- lane label (drawn last so the lane highlight and packet pass beneath it) -->
+<g data-node="pill"><rect class="nb" x="336" y="72" width="364" height="24" rx="12" fill="#16181d" stroke="#5991f4" stroke-opacity=".6"/><circle cx="352" cy="84" r="8" fill="none" stroke="#5991f4" stroke-width="1.5"/><text x="352" y="88.5" class="t13 b" style="fill:#5991f4" text-anchor="middle">3</text><text x="368" y="89" class="t13">브라우저 → Storage 직접 업로드 · RLS (워크스페이스)</text></g>
+</svg>
