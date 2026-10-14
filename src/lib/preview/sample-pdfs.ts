@@ -291,7 +291,7 @@ async function readFont(): Promise<Uint8Array> {
 export const SAMPLE_KINDS = Object.keys(SPECS) as SampleKind[];
 
 /** bump when draw() / slotsFor() change (the wording is part of the cache key anyway) */
-const LAYOUT_VERSION = 1;
+const LAYOUT_VERSION = 2;
 
 /** On-disk cache of the generated files (inside the preview build dir, git-ignored). */
 function cacheDir() {

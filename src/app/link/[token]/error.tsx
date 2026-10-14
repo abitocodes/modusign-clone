@@ -3,6 +3,7 @@
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useEffect } from "react";
 
+import { Wordmark } from "@/components/shell/logo";
 import { Button } from "@/components/ui/button";
 
 /** Public 링크서명 page: shown when the link could not be loaded. */
@@ -13,9 +14,7 @@ export default function LinkSignError({ error, retry }: { error: Error & { diges
   return (
     <div className="flex min-h-screen flex-col bg-body-2">
       <header className="flex h-[62px] shrink-0 items-center border-b border-line bg-surface px-5">
-        <span className="text-[15px] font-bold tracking-tight text-fg">
-          OpenSign
-        </span>
+        <Wordmark />
       </header>
       <main className="flex flex-1 flex-col items-center px-4 pb-16 pt-12 sm:pt-[72px]">
         <section className="flex w-full max-w-[414px] flex-col items-center rounded-xl border border-line bg-surface px-6 py-14 text-center sm:px-[47px]">

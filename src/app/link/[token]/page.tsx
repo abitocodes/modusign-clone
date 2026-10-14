@@ -2,6 +2,8 @@ import { FileSignature, Link2Off, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { Wordmark } from "@/components/shell/logo";
+
 import { LinkSignForm } from "./link-form";
 import { loadLink } from "./load";
 
@@ -11,9 +13,7 @@ function Shell({ children, footer }: { children: ReactNode; footer?: ReactNode }
   return (
     <div className="flex min-h-screen flex-col bg-body-2">
       <header className="flex h-[62px] shrink-0 items-center border-b border-line bg-surface px-5">
-        <span className="text-[15px] font-bold tracking-tight text-fg">
-          OpenSign
-        </span>
+        <Wordmark />
       </header>
       <main className="flex flex-1 flex-col items-center px-4 pb-16 pt-12 sm:pt-[72px]">
         {children}

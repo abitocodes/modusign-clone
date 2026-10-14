@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/brand/opensign-logo-dark.svg">
+  <img src="public/brand/opensign-logo-light.svg" alt="OpenSign" width="240" height="54">
+</picture>
+
 # OpenSign (사내 전자서명)
 
 Next.js 16 · TypeScript · Tailwind CSS v4 · Supabase 로 만든 사내 전용 전자서명 서비스입니다.
